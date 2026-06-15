@@ -3,494 +3,161 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AgarCity</title>
+  <title>TerraCity</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-
     body {
-      background: #0a0a14;
-      color: #fff;
+      background: #0c0a14; color: #f3e6c8;
       font-family: 'Press Start 2P', monospace;
-      overflow: hidden;
-      height: 100vh;
-      width: 100vw;
+      overflow: hidden; height: 100vh; width: 100vw;
     }
+    #game-canvas { position: fixed; inset: 0; z-index: 0; }
+    canvas { image-rendering: pixelated; }
 
-    #game-canvas {
-      position: fixed;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-      z-index: 0;
-    }
-
+    /* ---- Wooden / parchment theme ---- */
     .screen {
-      position: fixed;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-      z-index: 10;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: rgba(0,0,0,0.88);
+      position: fixed; inset: 0; z-index: 10;
+      display: flex; align-items: center; justify-content: center;
+      background: radial-gradient(circle at 50% 30%, #243047 0%, #0c0a14 80%);
     }
-
     .panel {
-      background: #111122;
-      border: 3px solid #ffd700;
-      border-radius: 4px;
-      padding: 32px 40px;
-      width: 90%;
-      max-width: 500px;
-      box-shadow: 0 0 32px rgba(255,215,0,0.2);
+      background: linear-gradient(#5a3a1e, #3e2713);
+      border: 4px solid #2a1a0d;
+      border-radius: 6px;
+      box-shadow: 0 0 0 3px #7a542e, 0 10px 40px rgba(0,0,0,0.6);
+      padding: 28px 34px; width: 90%; max-width: 520px;
     }
-
     h1 {
-      font-size: 22px;
-      color: #ffd700;
-      text-align: center;
-      margin-bottom: 6px;
-      letter-spacing: 2px;
-      text-shadow: 0 0 16px rgba(255,215,0,0.5);
+      font-size: 26px; color: #ffd98a; text-align: center; margin-bottom: 4px;
+      letter-spacing: 2px; text-shadow: 2px 2px 0 #3a2410, 0 0 14px rgba(255,180,80,0.4);
     }
-
-    .subtitle {
-      font-size: 7px;
-      color: #888;
-      text-align: center;
-      margin-bottom: 28px;
-      letter-spacing: 3px;
-    }
-
-    label {
-      display: block;
-      font-size: 8px;
-      color: #aaa;
-      margin-bottom: 6px;
-      margin-top: 14px;
-    }
-
+    .subtitle { font-size: 7px; color: #c9a86a; text-align: center; margin-bottom: 22px; letter-spacing: 3px; }
+    label { display: block; font-size: 8px; color: #e6c98f; margin: 14px 0 6px; }
     input[type="text"] {
-      width: 100%;
-      padding: 10px 12px;
-      background: #1a1a2e;
-      border: 2px solid #333355;
-      border-radius: 3px;
-      color: #fff;
-      font-family: 'Press Start 2P', monospace;
-      font-size: 11px;
-      outline: none;
-      transition: border-color 0.2s;
+      width: 100%; padding: 10px 12px; background: #2a1c0f;
+      border: 2px solid #1a1109; border-radius: 3px; color: #ffe9c0;
+      font-family: 'Press Start 2P', monospace; font-size: 11px; outline: none;
     }
-    input[type="text"]:focus { border-color: #ffd700; }
+    input[type="text"]:focus { border-color: #d9a441; }
 
     .btn {
-      display: inline-block;
-      padding: 12px 20px;
-      background: #ffd700;
-      color: #0a0a14;
-      border: none;
-      border-radius: 3px;
-      font-family: 'Press Start 2P', monospace;
-      font-size: 10px;
-      cursor: pointer;
-      transition: background 0.15s, transform 0.1s;
-      width: 100%;
-      margin-top: 10px;
+      display: inline-block; width: 100%; margin-top: 10px; padding: 12px 18px;
+      background: linear-gradient(#caa24a, #a87b2e); color: #2a1a08; border: 2px solid #6b4a1c;
+      border-radius: 4px; font-family: 'Press Start 2P', monospace; font-size: 10px;
+      cursor: pointer; text-shadow: 0 1px 0 rgba(255,255,255,0.25);
+      box-shadow: 0 3px 0 #6b4a1c;
     }
-    .btn:hover { background: #ffe94d; transform: translateY(-1px); }
-    .btn:active { transform: translateY(1px); }
-    .btn:disabled { background: #555; color: #888; cursor: not-allowed; transform: none; }
-    .btn-secondary {
-      background: transparent;
-      border: 2px solid #ffd700;
-      color: #ffd700;
-    }
-    .btn-secondary:hover { background: rgba(255,215,0,0.1); }
-
-    .btn-row { display: flex; gap: 10px; margin-top: 10px; }
+    .btn:hover { filter: brightness(1.08); }
+    .btn:active { transform: translateY(2px); box-shadow: 0 1px 0 #6b4a1c; }
+    .btn:disabled { background: #5a5040; color: #9a9080; box-shadow: 0 3px 0 #3a342a; cursor: not-allowed; }
+    .btn-secondary { background: linear-gradient(#6b4a28, #4a3018); color: #ffe2a8; box-shadow: 0 3px 0 #2a1a0c; }
+    .btn-row { display: flex; gap: 10px; }
     .btn-row .btn { flex: 1; }
-
-    .divider {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin: 14px 0 4px;
-      font-size: 7px;
-      color: #444;
-    }
-    .divider::before, .divider::after {
-      content: '';
-      flex: 1;
-      height: 1px;
-      background: #333355;
-    }
+    .divider { display: flex; align-items: center; gap: 10px; margin: 16px 0 4px; font-size: 7px; color: #8a6a3a; }
+    .divider::before, .divider::after { content: ''; flex: 1; height: 2px; background: #2a1a0c; }
 
     #error-msg {
-      display: none;
-      background: #7b1111;
-      border: 2px solid #e74c3c;
-      color: #fff;
-      font-size: 8px;
-      padding: 10px 14px;
-      border-radius: 3px;
-      margin-top: 14px;
-      text-align: center;
+      display: none; background: #5a1414; border: 2px solid #c0392b; color: #ffd;
+      font-size: 8px; padding: 10px; border-radius: 3px; margin-top: 14px; text-align: center;
     }
 
     #save-code-banner {
-      display: none;
-      position: fixed;
-      top: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 200;
-      background: #1a1a2e;
-      border: 2px solid #ffd700;
-      border-radius: 4px;
-      padding: 14px 24px;
-      align-items: center;
-      gap: 12px;
-      font-size: 8px;
-      color: #aaa;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+      display: none; position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+      z-index: 200; background: #2a1c0f; border: 2px solid #d9a441; border-radius: 4px;
+      padding: 12px 22px; align-items: center; gap: 12px; font-size: 8px; color: #e6c98f;
     }
-    #save-code-banner .code { color: #ffd700; font-size: 13px; letter-spacing: 3px; }
+    #save-code-banner .code { color: #ffd98a; font-size: 13px; letter-spacing: 3px; }
 
-    #lobby-code-box {
-      text-align: center;
-      margin: 16px 0 20px;
-    }
-    #lobby-code {
-      font-size: 32px;
-      color: #ffd700;
-      letter-spacing: 8px;
-      display: block;
-      margin: 8px 0 6px;
-      text-shadow: 0 0 12px rgba(255,215,0,0.4);
-    }
-    .code-hint { font-size: 7px; color: #666; }
+    /* lobby */
+    #lobby-code-box { text-align: center; margin: 14px 0 18px; }
+    #lobby-code { font-size: 30px; color: #ffd98a; letter-spacing: 7px; display: block; margin: 8px 0; text-shadow: 2px 2px 0 #3a2410; }
+    .code-hint { font-size: 7px; color: #a8854e; }
+    #lobby-players { min-height: 56px; margin: 12px 0; border: 2px solid #2a1a0c; border-radius: 3px; padding: 10px; background: rgba(0,0,0,0.18); }
+    .lobby-player { display: flex; align-items: center; gap: 10px; font-size: 9px; padding: 5px 0; color: #f0dcae; }
+    #player-count { font-size: 7px; color: #a8854e; }
+    .wait-msg { font-size: 7px; text-align: center; padding: 8px; border-radius: 3px; margin: 10px 0; }
+    .wait-msg.waiting { color: #e0a93c; background: rgba(224,169,60,0.1); }
+    .wait-msg.ready { color: #7ec85a; background: rgba(126,200,90,0.12); }
 
-    #lobby-players {
-      min-height: 60px;
-      margin: 14px 0;
-      border: 1px solid #222233;
-      border-radius: 3px;
-      padding: 10px;
-    }
-    .lobby-player {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      font-size: 9px;
-      padding: 5px 0;
-      border-bottom: 1px solid #1a1a2e;
-      color: #ccc;
-    }
-    .lobby-player:last-child { border-bottom: none; }
-    .player-dot {
-      width: 14px; height: 14px;
-      border-radius: 50%;
-      border: 2px solid rgba(255,255,255,0.3);
-      flex-shrink: 0;
-    }
+    /* character select */
+    .cs-panel { max-width: 620px; }
+    #char-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 8px; }
+    .char-option { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 6px;
+      border: 2px solid #2a1a0c; border-radius: 4px; cursor: pointer; background: rgba(0,0,0,0.18); }
+    .char-option:hover { border-color: #8a6a3a; }
+    .char-option.selected { border-color: #ffd98a; background: rgba(255,200,100,0.12); }
+    .char-name { font-size: 7px; color: #d8bd86; }
 
-    #player-count { font-size: 7px; color: #888; margin-bottom: 6px; }
+    /* ---- In-game HUD ---- */
+    #hud { display: none; position: fixed; top: 0; left: 0; right: 0; z-index: 50;
+      padding: 8px 14px; align-items: center; gap: 18px;
+      background: linear-gradient(rgba(20,12,6,0.82), rgba(20,12,6,0)); pointer-events: none; }
+    #hearts { image-rendering: pixelated; }
+    #hud-info { margin-left: auto; display: flex; gap: 16px; align-items: center; font-size: 8px; color: #e6c98f; }
+    #hud-phase { font-size: 14px; }
+    #hud-controls { position: fixed; bottom: 6px; right: 10px; z-index: 50; font-size: 6px; color: #7a6a4a; pointer-events: none; text-align: right; }
 
-    .wait-msg {
-      font-size: 7px;
-      text-align: center;
-      padding: 8px;
-      border-radius: 3px;
-      margin: 10px 0;
-    }
-    .wait-msg.waiting { color: #f39c12; background: rgba(243,156,18,0.1); }
-    .wait-msg.ready   { color: #2ecc71; background: rgba(46,204,113,0.1); }
+    /* ---- Hotbar (Inventory.js fills this) ---- */
+    #hotbar { display: none; position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%);
+      z-index: 55; gap: 4px; pointer-events: auto; }
+    .hb-slot { position: relative; width: 44px; height: 44px; background: linear-gradient(#3a2713, #241006);
+      border: 2px solid #6b4a1c; border-radius: 3px; display: flex; align-items: center; justify-content: center; }
+    .hb-slot.selected { border-color: #ffd98a; box-shadow: 0 0 8px rgba(255,200,100,0.5); transform: translateY(-3px); }
+    .hb-icon { image-rendering: pixelated; }
+    .hb-num { position: absolute; top: 1px; left: 3px; font-size: 6px; color: #b89a66; }
+    .hb-count { position: absolute; bottom: 1px; right: 3px; font-size: 7px; color: #fff; text-shadow: 1px 1px 0 #000; }
+    #hb-label { display: none; position: fixed; bottom: 62px; left: 50%; transform: translateX(-50%);
+      z-index: 55; font-size: 8px; color: #ffe9c0; text-shadow: 1px 1px 0 #000; pointer-events: none; }
 
-    .cs-panel { max-width: 680px; }
-
-    .cs-section-title {
-      font-size: 8px;
-      color: #ffd700;
-      margin: 18px 0 12px;
-      border-bottom: 1px solid #333355;
-      padding-bottom: 8px;
-    }
-
-    #char-grid {
-      display: grid;
-      grid-template-columns: repeat(5, 1fr);
-      gap: 10px;
-    }
-
-    .char-option {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 6px;
-      padding: 10px 6px;
-      border: 2px solid #222233;
-      border-radius: 4px;
-      cursor: pointer;
-      transition: border-color 0.15s, background 0.15s;
-    }
-    .char-option:hover { border-color: #666688; background: rgba(255,255,255,0.04); }
-    .char-option.selected { border-color: #ffd700; background: rgba(255,215,0,0.08); }
-
-    .char-avatar {
-      width: 50px; height: 50px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .char-name { font-size: 7px; color: #aaa; }
-    .char-option.selected .char-name { color: #ffd700; }
-
-    #spec-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 10px;
-    }
-
-    .spec-option {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 6px;
-      padding: 14px 8px;
-      border: 2px solid #222233;
-      border-radius: 4px;
-      cursor: pointer;
-      transition: border-color 0.15s, background 0.15s;
-    }
-    .spec-option:hover { border-color: #555577; background: rgba(255,255,255,0.04); }
-    .spec-option.selected { border-color: #ffd700; background: rgba(255,215,0,0.08); }
-
-    .spec-icon { font-size: 22px; }
-    .spec-name { font-size: 6px; color: #aaa; text-align: center; }
-    .spec-option.selected .spec-name { color: #ffd700; }
-
-    #interaction-prompt {
-      display: none;
-      position: fixed;
-      bottom: 80px;
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 60;
-      background: rgba(0,0,0,0.85);
-      border: 2px solid #ffd700;
-      border-radius: 4px;
-      padding: 10px 18px;
-      align-items: center;
-      gap: 12px;
-      pointer-events: none;
-    }
-    .ip-key {
-      background: #ffd700;
-      color: #000;
-      font-family: 'Press Start 2P', monospace;
-      font-size: 10px;
-      width: 24px; height: 24px;
-      display: flex; align-items: center; justify-content: center;
-      border-radius: 3px;
-      flex-shrink: 0;
-    }
-    .ip-text { display: flex; flex-direction: column; gap: 4px; }
-    .ip-label { font-size: 9px; font-family: 'Press Start 2P', monospace; color: #ffd700; }
-    .ip-rewards { font-size: 7px; font-family: 'Press Start 2P', monospace; color: #aaa; }
-
-    #job-progress-overlay {
-      display: none;
-      position: fixed;
-      bottom: 80px;
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 60;
-      background: rgba(0,0,0,0.92);
-      border: 2px solid #2ecc71;
-      border-radius: 4px;
-      padding: 14px 24px;
-      flex-direction: column;
-      gap: 8px;
-      min-width: 260px;
-      align-items: center;
-      pointer-events: none;
-    }
-    #job-progress-name {
-      font-size: 9px;
-      font-family: 'Press Start 2P', monospace;
-      color: #2ecc71;
-    }
-    .job-bar-bg {
-      width: 220px; height: 14px;
-      background: #1a1a2e;
-      border-radius: 3px;
-      overflow: hidden;
-      border: 1px solid #2ecc71;
-    }
-    #job-progress-fill {
-      height: 100%;
-      background: linear-gradient(90deg, #1a7a4a, #2ecc71);
-      width: 0%;
-      border-radius: 3px;
-      transition: width 0.3s;
-    }
-    #job-time-left {
-      font-size: 7px;
-      font-family: 'Press Start 2P', monospace;
-      color: #888;
-    }
-
-    @keyframes rewardPop {
-      0%   { opacity:0; transform:translateX(-50%) translateY(10px); }
-      15%  { opacity:1; transform:translateX(-50%) translateY(0); }
-      80%  { opacity:1; }
-      100% { opacity:0; }
-    }
-    #reward-popup {
-      display: none;
-      position: fixed;
-      bottom: 140px;
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 70;
-      background: rgba(0,0,0,0.85);
-      border: 2px solid #ffd700;
-      border-radius: 4px;
-      padding: 10px 20px;
-      font-size: 9px;
-      font-family: 'Press Start 2P', monospace;
-      color: #ffd700;
-      white-space: nowrap;
-      pointer-events: none;
-    }
-
-    #scoreboard {
-      display: none;
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      z-index: 80;
-      background: rgba(8,8,20,0.95);
-      border: 3px solid #ffd700;
-      border-radius: 6px;
-      padding: 20px 28px;
-      min-width: 320px;
-      box-shadow: 0 0 32px rgba(255,215,0,0.25);
-      pointer-events: none;
-    }
-    .sb-title {
-      font-size: 12px;
-      color: #ffd700;
-      text-align: center;
-      margin-bottom: 14px;
-      letter-spacing: 2px;
-    }
-    .sb-empty { font-size: 8px; color: #888; text-align: center; }
-    .sb-table { width: 100%; border-collapse: collapse; }
-    .sb-table th {
-      font-size: 7px; color: #888; text-align: left;
-      padding: 6px 10px; border-bottom: 1px solid #333355;
-    }
-    .sb-table td {
-      font-size: 9px; color: #ddd;
-      padding: 7px 10px; border-bottom: 1px solid #1a1a2e;
-    }
-    .sb-table tr:first-child td { color: #ffd700; }
-
-    #hud-spec { font-size: 7px; color: #888; white-space: nowrap; }
-
-    #hud {
-      display: none;
-      position: fixed;
-      top: 0; left: 0; right: 0;
-      z-index: 50;
-      padding: 10px 16px;
-      background: rgba(0,0,0,0.7);
-      align-items: center;
-      gap: 20px;
-      border-bottom: 2px solid rgba(255,215,0,0.2);
-    }
-
-    .hud-bar-group { display: flex; align-items: center; gap: 8px; }
-    .hud-label { font-size: 7px; color: #888; white-space: nowrap; }
-    .hud-bar-bg {
-      width: 100px; height: 10px;
-      background: #222233;
-      border-radius: 2px;
-      overflow: hidden;
-      border: 1px solid #333355;
-    }
-    .hud-bar-fill {
-      height: 100%;
-      border-radius: 2px;
-      transition: width 0.3s, background 0.5s;
-    }
-    .hud-stat { font-size: 8px; color: #ffd700; white-space: nowrap; }
-    .hud-sep { color: #333; font-size: 10px; }
-    #hud-controls { margin-left: auto; font-size: 7px; color: #555; }
+    /* chat (Chat.js builds its own nodes, these are fallbacks) */
   </style>
 </head>
 <body>
-
   <div id="game-canvas"></div>
 
   <div id="save-code-banner">
-    <span>&#11088; YOUR SAVE CODE:</span>
-    <span class="code" id="your-save-code">············</span>
-    <span style="color:#666;font-size:7px">Write this down!</span>
+    <span>&#11088; SAVE CODE:</span>
+    <span class="code" id="your-save-code">&#183;&#183;&#183;&#183;&#183;&#183;&#183;&#183;&#183;&#183;&#183;&#183;</span>
+    <span style="color:#8a6a3a;font-size:7px">Write it down!</span>
   </div>
 
-  <!-- START SCREEN -->
+  <!-- START -->
   <div class="screen" id="screen-start">
     <div class="panel">
-      <h1>AGARCITY</h1>
-      <p class="subtitle">URBAN LIFE · MULTIPLAYER</p>
-
+      <h1>TERRACITY</h1>
+      <p class="subtitle">DIG &#183; BUILD &#183; SURVIVE</p>
       <label>YOUR NAME</label>
       <input type="text" id="input-name" placeholder="Enter name..." maxlength="16" autocomplete="off" />
-
-      <label>SAVE CODE <span style="color:#555">(optional — restores your progress)</span></label>
+      <label>SAVE CODE <span style="color:#8a6a3a">(optional)</span></label>
       <input type="text" id="input-savecode" placeholder="12-character code" maxlength="12"
              style="text-transform:uppercase;letter-spacing:2px" autocomplete="off" />
-
-      <button class="btn" id="btn-solo" style="margin-top:20px">&#9654; Play Solo</button>
-
+      <button class="btn" id="btn-solo" style="margin-top:18px">&#9654; Play Solo</button>
       <div class="divider">or play with friends</div>
-
       <div class="btn-row">
-        <button class="btn btn-secondary" id="btn-create">Create Lobby</button>
-        <button class="btn btn-secondary" id="btn-join">Join Lobby</button>
+        <button class="btn btn-secondary" id="btn-create">Create World</button>
+        <button class="btn btn-secondary" id="btn-join">Join World</button>
       </div>
-
-      <label>LOBBY CODE <span style="color:#555">(to join existing lobby)</span></label>
+      <label>WORLD CODE <span style="color:#8a6a3a">(to join)</span></label>
       <input type="text" id="input-lobbycode" placeholder="e.g. ABC123" maxlength="6"
              style="text-transform:uppercase;letter-spacing:3px" autocomplete="off" />
-
       <div id="error-msg"></div>
     </div>
   </div>
 
-  <!-- LOBBY SCREEN -->
+  <!-- LOBBY -->
   <div class="screen" id="screen-lobby" style="display:none">
     <div class="panel">
-      <h1>LOBBY</h1>
-
+      <h1>WORLD LOBBY</h1>
       <div id="lobby-code-box">
         <div class="code-hint">Share this code with friends</div>
-        <span id="lobby-code">······</span>
-        <button class="btn btn-secondary" id="btn-copy-code" style="width:auto;padding:6px 14px;font-size:8px;margin-top:8px">
-          Copy Code
-        </button>
+        <span id="lobby-code">&#183;&#183;&#183;&#183;&#183;&#183;</span>
+        <button class="btn btn-secondary" id="btn-copy-code" style="width:auto;padding:6px 14px;font-size:8px">Copy Code</button>
       </div>
-
       <div id="player-count">0 / 8 players</div>
       <div id="lobby-players"></div>
       <div id="wait-msg" class="wait-msg waiting">Waiting for players...</div>
-
       <button class="btn" id="btn-start-game" disabled>Waiting for players...</button>
       <div id="error-msg" style="margin-top:10px"></div>
     </div>
@@ -499,64 +166,33 @@
   <!-- CHARACTER SELECT -->
   <div class="screen" id="screen-charselect" style="display:none">
     <div class="panel cs-panel">
-      <h1>CHOOSE YOUR CHARACTER</h1>
-      <p class="subtitle">Pick your look and career path</p>
-
-      <div class="cs-section-title">CHARACTER SKIN</div>
+      <h1>CHOOSE YOUR HERO</h1>
+      <p class="subtitle">Pick your look — then dig in</p>
       <div id="char-grid"></div>
-
-      <div class="cs-section-title">SPECIALIZATION</div>
-      <div id="spec-grid"></div>
-
-      <button class="btn" id="btn-enter-game" style="margin-top:22px">Enter City &#8594;</button>
+      <button class="btn" id="btn-enter-game" style="margin-top:20px">Enter World &#8594;</button>
     </div>
   </div>
 
-  <div id="screen-game" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;z-index:5;pointer-events:none;"></div>
-
-  <div id="interaction-prompt"></div>
-
-  <div id="job-progress-overlay">
-    <div id="job-progress-name">Working...</div>
-    <div class="job-bar-bg"><div id="job-progress-fill"></div></div>
-    <div id="job-time-left">0s</div>
-  </div>
-
-  <div id="reward-popup"></div>
-
-  <div id="scoreboard"></div>
-
+  <!-- HUD -->
   <div id="hud">
-    <div class="hud-bar-group">
-      <span class="hud-label">&#10084; HP</span>
-      <div class="hud-bar-bg">
-        <div class="hud-bar-fill" id="bar-health" style="width:100%;background:#2ecc71"></div>
-      </div>
+    <canvas id="hearts" width="120" height="20"></canvas>
+    <div id="hud-info">
+      <span id="hud-phase">&#9728;</span>
+      <span id="hud-depth">Depth 0</span>
     </div>
-    <span class="hud-sep">|</span>
-    <div class="hud-bar-group">
-      <span class="hud-label">&#127822; Food</span>
-      <div class="hud-bar-bg">
-        <div class="hud-bar-fill" id="bar-food" style="width:100%;background:#f39c12"></div>
-      </div>
-    </div>
-    <span class="hud-sep">|</span>
-    <span class="hud-stat">&#128176; <span id="hud-tokens">100</span></span>
-    <span class="hud-sep">|</span>
-    <span class="hud-stat">&#11088; XP <span id="hud-xp">0</span></span>
-    <span class="hud-sep">|</span>
-    <span id="hud-spec" class="hud-label"></span>
-    <div id="hud-controls">WASD move · Shift run · E interact · Enter chat · Tab scores · M map</div>
   </div>
+  <div id="hud-controls">A/D move &#183; W/Space jump &#183; L-click mine &#183; R-click place<br>1-0 / wheel select &#183; Enter chat</div>
 
   <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
   <script src="/socket.io/socket.io.js"></script>
   <script src="/js/config.js"></script>
-  <script src="/js/city.js"></script>
+  <script src="/js/world.js"></script>
   <script src="/js/socket-client.js"></script>
   <script src="/js/ui.js"></script>
-  <script src="/js/systems/JobSystem.js"></script>
-  <script src="/js/systems/Minimap.js"></script>
+  <script src="/js/systems/DayNight.js"></script>
+  <script src="/js/systems/Lighting.js"></script>
+  <script src="/js/systems/Particles.js"></script>
+  <script src="/js/systems/Inventory.js"></script>
   <script src="/js/systems/Chat.js"></script>
   <script src="/js/scenes/PreloadScene.js"></script>
   <script src="/js/scenes/GameScene.js"></script>
