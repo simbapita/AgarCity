@@ -1,26 +1,55 @@
-# InvestKing - Stock Tracker 👑
+# AgarCity
 
-מערכת חכמה למעקב וניתוח מניות מבוססת בינה מלאכותית.
+A multiplayer urban life browser game built with Phaser 3, Socket.io, and Node.js.
 
-## תכונות עיקריות
-- **ניתוח AI:** קבלת חוות דעת מקצועית וציון (1-10) עבור כל מניה באמצעות Google Gemini.
-- **נתונים בזמן אמת:** שאיבת נתונים פיננסיים (מחיר, מכפיל רווח, שווי שוק) באמצעות Yahoo Finance API.
-- **ניהול תיק:** מעקב אחרי מספר מניות וחישוב ציון ממוצע לתיק ההשקעות.
-- **ממשק פרימיום:** עיצוב Dark Mode מודרני, נקי ורספונסיבי.
+## Features
+- **Multiplayer lobbies** — create or join a game with a 6-character code
+- **Character customization** — 8 color skins and 6 career specializations
+- **Job system** — 3-tier career progression (e.g. Dishwasher → Server → Head Chef)
+- **Token economy** — earn tokens by working, spend them on food
+- **Persistent progress** — save code restores your tokens, XP, and job tier
+- **Procedural city map** — zone-based layout with parks, roads, shops, and districts
 
-## איך להפעיל?
-1. כנסו לאתר (דרך GitHub Pages).
-2. לחצו על כפתור **הגדרות API**.
-3. הזינו את המפתחות שלכם:
-   - **RapidAPI Key:** עבור נתוני המניות (Yahoo Finance).
-   - **Gemini API Key:** עבור ניתוח הבינה המלאכותית.
-4. התחילו להזין סימולי מניות (למשל: AAPL, TSLA, MSFT).
+## Getting Started
 
----
+```bash
+npm install
+npm start
+```
 
-## Technical Details
-Built with:
-- HTML5 / CSS3 (Tailwind CSS)
-- Vanilla JavaScript
-- Google Gemini AI API
-- RapidAPI (Yahoo Finance)
+Then open `http://localhost:3000` in your browser.
+
+## How to Play
+- **WASD** — move around the city
+- **E** — interact with job zones and food stores
+- Walk into a colored zone circle matching your specialization and press E to work
+- Earn XP to unlock higher-tier jobs with better pay
+- Keep your food bar up — buy food at orange store circles before your health drops
+
+## Tech Stack
+- **Client:** Phaser 3, Socket.io client, vanilla JS
+- **Server:** Node.js, Express, Socket.io, better-sqlite3
+- **Database:** SQLite (auto-created on first run)
+
+## Project Structure
+```
+client/          # Frontend (served as static files)
+  index.html
+  js/
+    config.js        # Game constants and zone definitions
+    city.js          # Procedural city map generator
+    ui.js            # Lobby/HUD screen manager
+    socket-client.js # Socket.io wrapper
+    scenes/
+      PreloadScene.js  # Asset generation
+      GameScene.js     # Main game loop
+    systems/
+      JobSystem.js     # Job/food store interaction
+server/          # Backend
+  index.js       # Express + Socket.io entry point
+  lobby.js       # Lobby creation and management
+  gameState.js   # Player movement and state
+  jobs.js        # Job sessions and tick system
+  db.js          # SQLite connection
+  schema.sql     # Database schema
+```
