@@ -11,15 +11,34 @@ var CFG = {
   },
 
   CHARS: [
-    { body: '#e74c3c', outline: '#922b21', name: 'Red' },
-    { body: '#3498db', outline: '#1a5276', name: 'Blue' },
-    { body: '#2ecc71', outline: '#1a7a4a', name: 'Green' },
-    { body: '#f39c12', outline: '#9a6007', name: 'Gold' },
-    { body: '#9b59b6', outline: '#6c3483', name: 'Purple' },
-    { body: '#e67e22', outline: '#935116', name: 'Orange' },
-    { body: '#ec407a', outline: '#880e4f', name: 'Pink' },
-    { body: '#00bcd4', outline: '#006064', name: 'Cyan' },
+    { name: 'Knight',     body: '#a6b2c1', outline: '#7f8c8d' },
+    { name: 'Barbarian',  body: '#d35400', outline: '#a04000' },
+    { name: 'Dwarf',      body: '#8e44ad', outline: '#6c3483' },
+    { name: 'Paladin',    body: '#f1c40f', outline: '#f39c12' },
+    { name: 'Commander',  body: '#2c3e50', outline: '#1a252f' },
+    { name: 'Wizard',     body: '#2980b9', outline: '#1f618d' },
+    { name: 'Ranger',     body: '#27ae60', outline: '#1e8449' },
+    { name: 'Assassin',   body: '#34495e', outline: '#2c3e50' },
+    { name: 'Cleric',     body: '#c0392b', outline: '#922b21' },
+    { name: 'Priestess',  body: '#ecf0f1', outline: '#bdc3c7' },
+    { name: 'Soldier',    body: '#7f8c8d', outline: '#5d6d7e' },
+    { name: 'Blacksmith', body: '#e67e22', outline: '#d35400' },
+    { name: 'Farmer',     body: '#f39c12', outline: '#b7950b' },
+    { name: 'Merchant',   body: '#16a085', outline: '#117a65' },
+    { name: 'Maid',       body: '#1abc9c', outline: '#16a085' },
   ],
+
+  // Calibrated sprite sheet coordinate metadata
+  SHEET: {
+    offsetX: 50,
+    offsetY: 35,
+    cellW: 100,
+    cellH: 145,
+    spacingX: 95,
+    spacingY: 28,
+    chromaColor: '#b0b5b8',
+    chromaTol: 50
+  },
 
   SPECS: [
     { id: 'TECH',         name: 'Technology',   icon: '💻', color: '#3498db' },

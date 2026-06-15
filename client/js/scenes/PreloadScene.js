@@ -10,6 +10,9 @@ var PreloadScene = new Phaser.Class({
     var bar = this.add.rectangle(400, 300, 400, 12, 0xffd700);
     var fill = this.add.rectangle(200, 300, 0, 10, 0xffffff);
     this.load.on('progress', function(v) { fill.width = 400 * v; fill.x = 200 + fill.width/2; });
+
+    // Load characters master sprite sheet
+    this.load.image('characters_sheet', 'assets/characters.png');
   },
 
   create: function() {
@@ -20,18 +23,58 @@ var PreloadScene = new Phaser.Class({
     self.textures.addCanvas('city', result.canvas);
     self.registry.set('cityMap', result.map);
 
-    // Create player sprite textures for each character
+    // Slice and chroma-key the character sprite sheet
+    var img = self.textures.get('characters_sheet').getSourceImage();
+    var cfg = CFG.SHEET;
+    var targetRgb = { r: 176, g: 181, b: 184 }; // #b0b5b8
+
     CFG.CHARS.forEach(function(ch, i) {
-      var g = self.make.graphics({ x: 0, y: 0, add: false });
-      g.lineStyle(3, hexToNum(ch.outline), 1);
-      g.fillStyle(hexToNum(ch.body), 1);
-      g.fillCircle(16, 16, 13);
-      g.strokeCircle(16, 16, 13);
-      // direction dot
-      g.fillStyle(0xffffff, 0.9);
-      g.fillCircle(16, 7, 4);
-      g.generateTexture('player_' + i, 32, 32);
-      g.destroy();
+      var row = Math.floor(i / 5);
+      var col = i % 5;
+      var x = cfg.offsetX + col * (cfg.cellW + cfg.spacingX);
+      var y = cfg.offsetY + row * (cfg.cellH + cfg.spacingY);
+
+      // 1. Full character cropped canvas
+      var canvas = document.createElement('canvas');
+      canvas.width = cfg.cellW;
+      canvas.height = cfg.cellH;
+      var ctx = canvas.getContext('2d');
+      ctx.drawImage(img, x, y, cfg.cellW, cfg.cellH, 0, 0, cfg.cellW, cfg.cellH);
+
+      // Chroma-key transparency for full character
+      var imgData = ctx.getImageData(0, 0, cfg.cellW, cfg.cellH);
+      var pixels = imgData.data;
+      for (var j = 0; j < pixels.length; j += 4) {
+        var pr = pixels[j];
+        var pg = pixels[j+1];
+        var pb = pixels[j+2];
+        
+        var dist = Math.sqrt(
+          Math.pow(pr - targetRgb.r, 2) +
+          Math.pow(pg - targetRgb.g, 2) +
+          Math.pow(pb - targetRgb.b, 2)
+        );
+        
+        if (dist < cfg.chromaTol) {
+          pixels[j+3] = 0; // Transparent
+        }
+      }
+      ctx.putImageData(imgData, 0, 0);
+
+      // Register character texture with Phaser
+      self.textures.addCanvas('player_' + i, canvas);
+
+      // 2. Avatar headshot cropped canvas (for UI/lobby)
+      var avCanvas = document.createElement('canvas');
+      avCanvas.width = 50;
+      avCanvas.height = 50;
+      var avCtx = avCanvas.getContext('2d');
+      
+      // Crop upper body area (x: 20-80, y: 10-70 of full 100x145 character canvas)
+      avCtx.drawImage(canvas, 20, 10, 60, 60, 0, 0, 50, 50);
+
+      // Register avatar texture
+      self.textures.addCanvas('avatar_' + i, avCanvas);
     });
 
     // NPC pedestrian texture

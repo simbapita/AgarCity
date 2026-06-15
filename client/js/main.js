@@ -9,6 +9,11 @@
     height: window.innerHeight,
     parent: 'game-canvas',
     backgroundColor: '#0a0a14',
+    input: {
+      keyboard: {
+        target: window,
+      },
+    },
     physics: {
       default: 'arcade',
       arcade: { gravity: { y: 0 }, debug: false },

@@ -1,6 +1,10 @@
 const { stmts } = require('./db');
 const { getLobbyBySocket } = require('./lobby');
 
+// Safe spawn point on a sidewalk tile at a road intersection
+const SAFE_SPAWN_X = 336;
+const SAFE_SPAWN_Y = 336;
+
 // Map<lobbyCode, Map<playerId, PlayerState>>
 const gameStates = new Map();
 
@@ -18,8 +22,8 @@ function initPlayer(lobbyCode, playerId, data) {
     username: data.username || db?.username || 'Unknown',
     characterId: data.characterId ?? db?.character_id ?? 0,
     specialization: data.specialization || db?.specialization || 'NONE',
-    x: db?.spawn_x ?? 1120,
-    y: db?.spawn_y ?? 1120,
+    x: _safeSpawn(db?.spawn_x, SAFE_SPAWN_X),
+    y: _safeSpawn(db?.spawn_y, SAFE_SPAWN_Y),
     direction: 'down',
     moving: false,
     tokens: db?.tokens ?? 100,
@@ -110,6 +114,15 @@ function handleDisconnect(socket, lobbyCode, playerId, io) {
 
   if (state.size === 0) gameStates.delete(lobbyCode);
   io.to(lobbyCode).emit('player_left_game', { playerId });
+}
+
+// Validate spawn coordinate — reject the old broken default (1120)
+// which lands inside a building. Fall back to a safe sidewalk tile.
+function _safeSpawn(dbVal, safeVal) {
+  if (dbVal == null) return safeVal;
+  // The old default was 1120, which is inside a non-walkable building
+  if (dbVal === 1120) return safeVal;
+  return dbVal;
 }
 
 module.exports = { handlePlayerReady, handlePlayerMove, handleDisconnect };

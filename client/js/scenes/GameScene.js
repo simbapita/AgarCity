@@ -109,8 +109,9 @@ var GameScene = new Phaser.Class({
 
     var sprite = self.physics.add.image(ps.x, ps.y, 'player_' + ps.characterId);
     sprite.setCollideWorldBounds(true).setDepth(10);
+    sprite.setDisplaySize(36, 52.2);
 
-    var nameText = self.add.text(ps.x, ps.y - 22, ps.username, {
+    var nameText = self.add.text(ps.x, ps.y - 32, ps.username, {
       fontSize: '9px', fontFamily: "'Press Start 2P'",
       color: '#ffffff', stroke: '#000000', strokeThickness: 3,
     }).setOrigin(0.5).setDepth(11);
@@ -125,7 +126,8 @@ var GameScene = new Phaser.Class({
     var self = this;
     if (self._remotePlayers[ps.playerId]) return;
     var sprite = self.add.image(ps.x, ps.y, 'player_' + ps.characterId).setDepth(9).setAlpha(0.85);
-    var nameText = self.add.text(ps.x, ps.y - 22, ps.username, {
+    sprite.setDisplaySize(36, 52.2);
+    var nameText = self.add.text(ps.x, ps.y - 32, ps.username, {
       fontSize: '9px', fontFamily: "'Press Start 2P'",
       color: '#dddddd', stroke: '#000000', strokeThickness: 3,
     }).setOrigin(0.5).setDepth(10);
@@ -184,11 +186,11 @@ var GameScene = new Phaser.Class({
     if (self._canWalk(nx, sp.y)) sp.x = nx;
     if (self._canWalk(sp.x, ny)) sp.y = ny;
 
-    var angles = { up: -90, down: 90, left: 180, right: 0 };
-    sp.angle = angles[direction] || 90;
+    // Apply custom player walk/idle animations
+    self._animateSprite(sp, moving, direction, time);
 
     self._myPlayer.nameText.x = sp.x;
-    self._myPlayer.nameText.y = sp.y - 22;
+    self._myPlayer.nameText.y = sp.y - 32;
 
     // Stat drain
     var ps = self._myPlayer.data;
@@ -201,14 +203,16 @@ var GameScene = new Phaser.Class({
     var eJustPressed = Phaser.Input.Keyboard.JustDown(self._eKey);
     JobSystem.update(sp.x, sp.y, eJustPressed, self._spec);
 
-    // Remote player lerp
+    // Remote player lerp and animation
     Object.keys(self._remotePlayers).forEach(function(pid) {
       var rp = self._remotePlayers[pid];
       if (rp.data.targetX !== undefined) {
         rp.sprite.x += (rp.data.targetX - rp.sprite.x) * 0.18;
         rp.sprite.y += (rp.data.targetY - rp.sprite.y) * 0.18;
         rp.nameText.x = rp.sprite.x;
-        rp.nameText.y = rp.sprite.y - 22;
+        rp.nameText.y = rp.sprite.y - 32;
+
+        self._animateSprite(rp.sprite, rp.data.moving, rp.data.direction, time);
       }
     });
 
@@ -324,5 +328,37 @@ var GameScene = new Phaser.Class({
       if (car.vx > 0 && car.sprite.x > W+50) car.sprite.x = -50;
       if (car.vx < 0 && car.sprite.x < -50)  car.sprite.x = W+50;
     });
+  },
+
+  _animateSprite: function(sprite, moving, direction, time) {
+    sprite.angle = 0;
+    
+    if (direction === 'left') {
+      sprite.flipX = true;
+    } else if (direction === 'right') {
+      sprite.flipX = false;
+    }
+
+    var scaleX = 1.0;
+    var scaleY = 1.0;
+    var originY = 0.5;
+
+    if (moving) {
+      var bobTime = time * 0.015;
+      var bobY = Math.abs(Math.sin(bobTime)) * -6; // Up to 6 pixels of vertical lift
+      var squish = Math.sin(bobTime) * 0.06;
+      scaleY = 1.0 - Math.abs(squish);
+      scaleX = 1.0 + Math.abs(squish) * 0.5;
+      originY = 0.5 - (bobY / 52.2); // Offset texture origin vertically
+    } else {
+      var breatheTime = time * 0.003;
+      var breathing = Math.sin(breatheTime) * 0.02;
+      scaleY = 1.0 + breathing;
+      scaleX = 1.0 - breathing * 0.5;
+      originY = 0.5;
+    }
+
+    sprite.setDisplaySize(36 * scaleX, 52.2 * scaleY);
+    sprite.setOrigin(0.5, originY);
   },
 });

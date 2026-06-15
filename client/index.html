@@ -220,7 +220,7 @@
 
     #char-grid {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(5, 1fr);
       gap: 10px;
     }
 
@@ -239,9 +239,10 @@
     .char-option.selected { border-color: #ffd700; background: rgba(255,215,0,0.08); }
 
     .char-avatar {
-      width: 36px; height: 36px;
-      border-radius: 50%;
-      border: 3px solid;
+      width: 50px; height: 50px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
 
     .char-name { font-size: 7px; color: #aaa; }

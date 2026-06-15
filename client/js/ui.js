@@ -6,6 +6,54 @@ var UI = (function() {
   var selectedSpec = 'TECH';
   var isHost = false;
 
+  var charactersSheetImg = new Image();
+  charactersSheetImg.src = '/assets/characters.png';
+
+  function drawAvatarOnCanvas(canvas, charIdx) {
+    if (!charactersSheetImg.complete) {
+      charactersSheetImg.addEventListener('load', function() { drawAvatarOnCanvas(canvas, charIdx); }, { once: true });
+      return;
+    }
+
+    var cfg = CFG.SHEET;
+    var targetRgb = { r: 176, g: 181, b: 184 }; // #b0b5b8
+    var row = Math.floor(charIdx / 5);
+    var col = charIdx % 5;
+    var x = cfg.offsetX + col * (cfg.cellW + cfg.spacingX);
+    var y = cfg.offsetY + row * (cfg.cellH + cfg.spacingY);
+
+    var offCanvas = document.createElement('canvas');
+    offCanvas.width = cfg.cellW;
+    offCanvas.height = cfg.cellH;
+    var offCtx = offCanvas.getContext('2d');
+    offCtx.drawImage(charactersSheetImg, x, y, cfg.cellW, cfg.cellH, 0, 0, cfg.cellW, cfg.cellH);
+
+    var imgData = offCtx.getImageData(0, 0, cfg.cellW, cfg.cellH);
+    var pixels = imgData.data;
+    for (var j = 0; j < pixels.length; j += 4) {
+      var pr = pixels[j];
+      var pg = pixels[j+1];
+      var pb = pixels[j+2];
+      var dist = Math.sqrt(
+        Math.pow(pr - targetRgb.r, 2) +
+        Math.pow(pg - targetRgb.g, 2) +
+        Math.pow(pb - targetRgb.b, 2)
+      );
+      if (dist < cfg.chromaTol) {
+        pixels[j+3] = 0;
+      }
+    }
+    offCtx.putImageData(imgData, 0, 0);
+
+    canvas.width = canvas.clientWidth || 40;
+    canvas.height = canvas.clientHeight || 40;
+    var ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // Crop upper-body headshot region: x:20-80, y:10-70 of full 100x145 canvas
+    ctx.drawImage(offCanvas, 20, 10, 60, 60, 0, 0, canvas.width, canvas.height);
+  }
+
   function show(screen) {
     ['start','lobby','charselect','game'].forEach(function(s) {
       var el = document.getElementById('screen-' + s);
@@ -15,6 +63,14 @@ var UI = (function() {
 
     if (screen === 'game') {
       document.getElementById('hud').style.display = 'flex';
+      // Focus the Phaser canvas so keyboard input (WASD/arrows) works
+      setTimeout(function() {
+        var canvas = document.querySelector('#game-canvas canvas');
+        if (canvas) {
+          canvas.setAttribute('tabindex', '0');
+          canvas.focus();
+        }
+      }, 100);
     } else {
       document.getElementById('hud').style.display = 'none';
     }
@@ -137,6 +193,15 @@ var UI = (function() {
     SC.on('game_start', function(d) {
       show('charselect');
     });
+
+    // Click anywhere on game area to re-focus canvas for keyboard input
+    document.getElementById('game-canvas').addEventListener('click', function() {
+      var canvas = document.querySelector('#game-canvas canvas');
+      if (canvas && currentScreen === 'game') {
+        canvas.setAttribute('tabindex', '0');
+        canvas.focus();
+      }
+    });
   }
 
   function saveToBrowser(saveCode, username) {
@@ -160,11 +225,19 @@ var UI = (function() {
     var el = document.getElementById('lobby-players');
     if (!el || !d.players) return;
     el.innerHTML = d.players.map(function(p) {
+      var charId = p.characterId || 0;
+      var ch = CFG.CHARS[charId] || CFG.CHARS[0];
       return '<div class="lobby-player">' +
-        '<span class="player-dot" style="background:' + (CFG.CHARS[p.characterId || 0] || CFG.CHARS[0]).body + '"></span>' +
+        '<canvas class="lobby-avatar" width="40" height="40" data-idx="' + charId + '" style="border-radius:4px; border:2px solid ' + ch.outline + '; background:rgba(255,255,255,0.05); width:40px; height:40px; image-rendering:pixelated;"></canvas>' +
         '<span>' + escHtml(p.username) + '</span>' +
         '</div>';
     }).join('');
+
+    // Draw all player avatars
+    el.querySelectorAll('.lobby-avatar').forEach(function(canvas) {
+      var charIdx = parseInt(canvas.dataset.idx, 10);
+      drawAvatarOnCanvas(canvas, charIdx);
+    });
 
     var count = document.getElementById('player-count');
     if (count) count.textContent = d.players.length + ' / 8 players';
@@ -187,10 +260,16 @@ var UI = (function() {
     if (charGrid) {
       charGrid.innerHTML = CFG.CHARS.map(function(c, i) {
         return '<div class="char-option ' + (i===0?'selected':'') + '" data-idx="' + i + '">' +
-          '<div class="char-avatar" style="background:' + c.body + ';border-color:' + c.outline + '"></div>' +
+          '<div class="char-avatar"><canvas class="char-select-avatar" width="50" height="50" data-idx="' + i + '" style="width:50px; height:50px; image-rendering:pixelated;"></canvas></div>' +
           '<div class="char-name">' + c.name + '</div>' +
           '</div>';
       }).join('');
+
+      // Draw all character selection options
+      charGrid.querySelectorAll('.char-select-avatar').forEach(function(canvas) {
+        var charIdx = parseInt(canvas.dataset.idx, 10);
+        drawAvatarOnCanvas(canvas, charIdx);
+      });
 
       charGrid.addEventListener('click', function(e) {
         var opt = e.target.closest('.char-option');

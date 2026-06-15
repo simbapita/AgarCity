@@ -19,6 +19,7 @@ var SC = (function() {
       'lobby_created', 'lobby_joined', 'lobby_updated', 'can_start', 'game_start',
       'game_state_init', 'player_joined_game', 'player_left_game',
       'player_moved', 'position_correction',
+      'job_started', 'job_complete', 'job_cancelled', 'food_bought',
     ];
 
     events.forEach(function(ev) {
