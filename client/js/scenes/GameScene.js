@@ -29,7 +29,6 @@ var GameScene = new Phaser.Class({
     self.physics.world.setBounds(0, 0, W, H);
     self.cameras.main.setBounds(0, 0, W, H);
 
-    // Input
     self._cursors = self.input.keyboard.createCursorKeys();
     self._wasd = self.input.keyboard.addKeys({
       up:    Phaser.Input.Keyboard.KeyCodes.W,
@@ -39,17 +38,11 @@ var GameScene = new Phaser.Class({
     });
     self._eKey = self.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
 
-    // Zone labels on the map
     self._drawZoneLabels();
-
-    // Food store markers
     self._drawFoodStoreMarkers();
-
-    // NPCs + cars
     self._spawnNPCs();
     self._spawnCars();
 
-    // Init job system
     JobSystem.init(function(event) {
       if (!self._myPlayer) return;
       var ps = self._myPlayer.data;
@@ -65,7 +58,6 @@ var GameScene = new Phaser.Class({
       }
     });
 
-    // Socket events
     SC.on('game_state_init', function(d) {
       self._initSelf(d.self);
       d.others.forEach(function(ps) { self._addRemotePlayer(ps); });
@@ -75,7 +67,7 @@ var GameScene = new Phaser.Class({
     SC.on('player_joined_game', function(ps) { self._addRemotePlayer(ps); });
     SC.on('player_left_game',   function(d)  { self._removeRemotePlayer(d.playerId); });
     SC.on('player_moved',       function(d)  { self._updateRemotePlayer(d); });
-    SC.on('position_correction',function(d)  {
+    SC.on('position_correction', function(d) {
       if (self._myPlayer) { self._myPlayer.sprite.x = d.x; self._myPlayer.sprite.y = d.y; }
     });
 
@@ -109,9 +101,10 @@ var GameScene = new Phaser.Class({
 
     var sprite = self.physics.add.image(ps.x, ps.y, 'player_' + ps.characterId);
     sprite.setCollideWorldBounds(true).setDepth(10);
-    sprite.setDisplaySize(36, 52.2);
+    sprite.setOrigin(0.5, 0.5);
+    sprite.setDisplaySize(36, 52);
 
-    var nameText = self.add.text(ps.x, ps.y - 32, ps.username, {
+    var nameText = self.add.text(ps.x, ps.y - 34, ps.username, {
       fontSize: '9px', fontFamily: "'Press Start 2P'",
       color: '#ffffff', stroke: '#000000', strokeThickness: 3,
     }).setOrigin(0.5).setDepth(11);
@@ -125,9 +118,11 @@ var GameScene = new Phaser.Class({
   _addRemotePlayer: function(ps) {
     var self = this;
     if (self._remotePlayers[ps.playerId]) return;
-    var sprite = self.add.image(ps.x, ps.y, 'player_' + ps.characterId).setDepth(9).setAlpha(0.85);
-    sprite.setDisplaySize(36, 52.2);
-    var nameText = self.add.text(ps.x, ps.y - 32, ps.username, {
+    var sprite = self.add.image(ps.x, ps.y, 'player_' + ps.characterId)
+      .setDepth(9).setAlpha(0.85)
+      .setOrigin(0.5, 0.5)
+      .setDisplaySize(36, 52);
+    var nameText = self.add.text(ps.x, ps.y - 34, ps.username, {
       fontSize: '9px', fontFamily: "'Press Start 2P'",
       color: '#dddddd', stroke: '#000000', strokeThickness: 3,
     }).setOrigin(0.5).setDepth(10);
@@ -169,14 +164,13 @@ var GameScene = new Phaser.Class({
     if (cur.up.isDown    || wasd.up.isDown)    vy = -CFG.SPEED;
     if (cur.down.isDown  || wasd.down.isDown)  vy =  CFG.SPEED;
 
-    // Stop movement while working
     if (JobSystem.isWorking()) { vx = 0; vy = 0; }
 
     if (vx !== 0 && vy !== 0) { vx *= 0.707; vy *= 0.707; }
 
     var moving = vx !== 0 || vy !== 0;
     var direction = self._myPlayer.data.direction || 'down';
-    if (vy < 0) direction = 'up';
+    if      (vy < 0) direction = 'up';
     else if (vy > 0) direction = 'down';
     else if (vx < 0) direction = 'left';
     else if (vx > 0) direction = 'right';
@@ -186,41 +180,69 @@ var GameScene = new Phaser.Class({
     if (self._canWalk(nx, sp.y)) sp.x = nx;
     if (self._canWalk(sp.x, ny)) sp.y = ny;
 
-    // Apply custom player walk/idle animations
+    self._myPlayer.data.direction = direction;
+    self._myPlayer.data.moving = moving;
+
     self._animateSprite(sp, moving, direction, time);
 
     self._myPlayer.nameText.x = sp.x;
-    self._myPlayer.nameText.y = sp.y - 32;
+    self._myPlayer.nameText.y = sp.y - 34;
 
-    // Stat drain
     var ps = self._myPlayer.data;
     if (moving) ps.food = Math.max(0, ps.food - CFG.DRAIN.FOOD_WALK * dt);
     else        ps.food = Math.max(0, ps.food - CFG.DRAIN.FOOD_IDLE  * dt);
     if (ps.food <= 0) ps.health = Math.max(0, ps.health - CFG.DRAIN.HEALTH_EMPTY * dt);
     self._updateHUD(ps);
 
-    // Job / food interaction
     var eJustPressed = Phaser.Input.Keyboard.JustDown(self._eKey);
     JobSystem.update(sp.x, sp.y, eJustPressed, self._spec);
 
-    // Remote player lerp and animation
     Object.keys(self._remotePlayers).forEach(function(pid) {
       var rp = self._remotePlayers[pid];
       if (rp.data.targetX !== undefined) {
         rp.sprite.x += (rp.data.targetX - rp.sprite.x) * 0.18;
         rp.sprite.y += (rp.data.targetY - rp.sprite.y) * 0.18;
         rp.nameText.x = rp.sprite.x;
-        rp.nameText.y = rp.sprite.y - 32;
-
+        rp.nameText.y = rp.sprite.y - 34;
         self._animateSprite(rp.sprite, rp.data.moving, rp.data.direction, time);
       }
     });
 
-    // Send position at ~15fps
     self._moveTimer += delta;
     if (self._moveTimer >= 67) {
       self._moveTimer = 0;
       SC.emit('player_move', { x: sp.x, y: sp.y, direction: direction, moving: moving });
+    }
+  },
+
+  // Flawless walk animation: fixed origin, proper squish-stretch, no jitter.
+  _animateSprite: function(sprite, moving, direction, time) {
+    sprite.angle = 0;
+    sprite.setOrigin(0.5, 0.5); // fixed — never change this per-frame
+
+    // Horizontal facing: only update on left/right, retain on up/down
+    if      (direction === 'left')  sprite.flipX = true;
+    else if (direction === 'right') sprite.flipX = false;
+
+    var baseW = 36;
+    var baseH = 52;
+    var t = time % 628318; // prevent float precision loss at large time values (~10min loop)
+
+    if (moving) {
+      // Stride cycle: abs(sin) gives a smooth 0→1→0 bump per half-step.
+      // At CFG.SPEED=160, frequency 0.0085 rad/ms gives ~1.3 full bob cycles/sec — feels natural.
+      var bob = Math.abs(Math.sin(t * 0.0085));
+      // Stretch up at peak (taller), compensate width (narrower) — classic squish-stretch
+      var stretchY = 1.0 + bob * 0.09;  // max +9% taller at stride peak
+      var squishX  = 1.0 - bob * 0.04;  // max -4% narrower to compensate
+      sprite.setDisplaySize(baseW * squishX, baseH * stretchY);
+    } else {
+      // Idle breathing: very slow, very subtle — just enough to feel alive
+      var breathe = Math.sin(t * 0.0018); // ~1 breath per 3.5 sec
+      sprite.setDisplaySize(
+        baseW * (1.0 - breathe * 0.010),
+        baseH * (1.0 + breathe * 0.016)
+      );
     }
   },
 
@@ -246,17 +268,13 @@ var GameScene = new Phaser.Class({
     var zones = CFG.JOB_ZONES || [];
     var specColors = { TECH:'#3498db', MEDICAL:'#e74c3c', FOOD_SERVICE:'#f39c12',
                        TRADES:'#95a5a6', BUSINESS:'#2ecc71', ARTS:'#9b59b6', ANY:'#ffd700' };
-
     zones.forEach(function(z) {
       var col = specColors[z.spec] || '#fff';
-      // Glow circle on map
       var g = self.add.graphics().setDepth(2);
       g.lineStyle(2, parseInt(col.replace('#',''), 16), 0.5);
       g.strokeCircle(z.x, z.y, z.radius);
       g.fillStyle(parseInt(col.replace('#',''), 16), 0.08);
       g.fillCircle(z.x, z.y, z.radius);
-
-      // Label text
       self.add.text(z.x, z.y - z.radius - 8, z.label, {
         fontSize: '8px', fontFamily: "'Press Start 2P'",
         color: col, stroke: '#000000', strokeThickness: 3,
@@ -273,7 +291,6 @@ var GameScene = new Phaser.Class({
       g.strokeCircle(s.x, s.y, s.radius);
       g.fillStyle(0xf39c12, 0.08);
       g.fillCircle(s.x, s.y, s.radius);
-
       self.add.text(s.x, s.y - s.radius - 8, '🍎 ' + s.name, {
         fontSize: '7px', fontFamily: "'Press Start 2P'",
         color: '#f39c12', stroke: '#000000', strokeThickness: 3,
@@ -291,11 +308,10 @@ var GameScene = new Phaser.Class({
       [{x:1100,y:270},{x:1500,y:270},{x:1500,y:282},{x:1100,y:282}],
     ];
     routes.forEach(function(route, ri) {
-      var npc = {
+      self._npcs.push({
         sprite: self.add.image(route[0].x, route[0].y, 'npc').setDepth(8).setAlpha(0.75),
         route: route, waypointIdx: 0, speed: 38 + ri * 6,
-      };
-      self._npcs.push(npc);
+      });
     });
   },
 
@@ -328,37 +344,5 @@ var GameScene = new Phaser.Class({
       if (car.vx > 0 && car.sprite.x > W+50) car.sprite.x = -50;
       if (car.vx < 0 && car.sprite.x < -50)  car.sprite.x = W+50;
     });
-  },
-
-  _animateSprite: function(sprite, moving, direction, time) {
-    sprite.angle = 0;
-    
-    if (direction === 'left') {
-      sprite.flipX = true;
-    } else if (direction === 'right') {
-      sprite.flipX = false;
-    }
-
-    var scaleX = 1.0;
-    var scaleY = 1.0;
-    var originY = 0.5;
-
-    if (moving) {
-      var bobTime = time * 0.015;
-      var bobY = Math.abs(Math.sin(bobTime)) * -6; // Up to 6 pixels of vertical lift
-      var squish = Math.sin(bobTime) * 0.06;
-      scaleY = 1.0 - Math.abs(squish);
-      scaleX = 1.0 + Math.abs(squish) * 0.5;
-      originY = 0.5 - (bobY / 52.2); // Offset texture origin vertically
-    } else {
-      var breatheTime = time * 0.003;
-      var breathing = Math.sin(breatheTime) * 0.02;
-      scaleY = 1.0 + breathing;
-      scaleX = 1.0 - breathing * 0.5;
-      originY = 0.5;
-    }
-
-    sprite.setDisplaySize(36 * scaleX, 52.2 * scaleY);
-    sprite.setOrigin(0.5, originY);
   },
 });
