@@ -367,6 +367,40 @@
       pointer-events: none;
     }
 
+    #scoreboard {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 80;
+      background: rgba(8,8,20,0.95);
+      border: 3px solid #ffd700;
+      border-radius: 6px;
+      padding: 20px 28px;
+      min-width: 320px;
+      box-shadow: 0 0 32px rgba(255,215,0,0.25);
+      pointer-events: none;
+    }
+    .sb-title {
+      font-size: 12px;
+      color: #ffd700;
+      text-align: center;
+      margin-bottom: 14px;
+      letter-spacing: 2px;
+    }
+    .sb-empty { font-size: 8px; color: #888; text-align: center; }
+    .sb-table { width: 100%; border-collapse: collapse; }
+    .sb-table th {
+      font-size: 7px; color: #888; text-align: left;
+      padding: 6px 10px; border-bottom: 1px solid #333355;
+    }
+    .sb-table td {
+      font-size: 9px; color: #ddd;
+      padding: 7px 10px; border-bottom: 1px solid #1a1a2e;
+    }
+    .sb-table tr:first-child td { color: #ffd700; }
+
     #hud-spec { font-size: 7px; color: #888; white-space: nowrap; }
 
     #hud {
@@ -405,7 +439,7 @@
   <div id="game-canvas"></div>
 
   <div id="save-code-banner">
-    <span>⭐ YOUR SAVE CODE:</span>
+    <span>&#11088; YOUR SAVE CODE:</span>
     <span class="code" id="your-save-code">············</span>
     <span style="color:#666;font-size:7px">Write this down!</span>
   </div>
@@ -423,7 +457,7 @@
       <input type="text" id="input-savecode" placeholder="12-character code" maxlength="12"
              style="text-transform:uppercase;letter-spacing:2px" autocomplete="off" />
 
-      <button class="btn" id="btn-solo" style="margin-top:20px">▶ Play Solo</button>
+      <button class="btn" id="btn-solo" style="margin-top:20px">&#9654; Play Solo</button>
 
       <div class="divider">or play with friends</div>
 
@@ -474,7 +508,7 @@
       <div class="cs-section-title">SPECIALIZATION</div>
       <div id="spec-grid"></div>
 
-      <button class="btn" id="btn-enter-game" style="margin-top:22px">Enter City →</button>
+      <button class="btn" id="btn-enter-game" style="margin-top:22px">Enter City &#8594;</button>
     </div>
   </div>
 
@@ -490,27 +524,29 @@
 
   <div id="reward-popup"></div>
 
+  <div id="scoreboard"></div>
+
   <div id="hud">
     <div class="hud-bar-group">
-      <span class="hud-label">❤ HP</span>
+      <span class="hud-label">&#10084; HP</span>
       <div class="hud-bar-bg">
         <div class="hud-bar-fill" id="bar-health" style="width:100%;background:#2ecc71"></div>
       </div>
     </div>
     <span class="hud-sep">|</span>
     <div class="hud-bar-group">
-      <span class="hud-label">🍎 Food</span>
+      <span class="hud-label">&#127822; Food</span>
       <div class="hud-bar-bg">
         <div class="hud-bar-fill" id="bar-food" style="width:100%;background:#f39c12"></div>
       </div>
     </div>
     <span class="hud-sep">|</span>
-    <span class="hud-stat">💰 <span id="hud-tokens">100</span></span>
+    <span class="hud-stat">&#128176; <span id="hud-tokens">100</span></span>
     <span class="hud-sep">|</span>
-    <span class="hud-stat">⭐ XP <span id="hud-xp">0</span></span>
+    <span class="hud-stat">&#11088; XP <span id="hud-xp">0</span></span>
     <span class="hud-sep">|</span>
     <span id="hud-spec" class="hud-label"></span>
-    <div id="hud-controls">WASD move · E interact</div>
+    <div id="hud-controls">WASD move · Shift run · E interact · Enter chat · Tab scores · M map</div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
@@ -520,6 +556,8 @@
   <script src="/js/socket-client.js"></script>
   <script src="/js/ui.js"></script>
   <script src="/js/systems/JobSystem.js"></script>
+  <script src="/js/systems/Minimap.js"></script>
+  <script src="/js/systems/Chat.js"></script>
   <script src="/js/scenes/PreloadScene.js"></script>
   <script src="/js/scenes/GameScene.js"></script>
   <script src="/js/main.js"></script>

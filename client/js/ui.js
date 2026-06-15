@@ -6,52 +6,63 @@ var UI = (function() {
   var selectedSpec = 'TECH';
   var isHost = false;
 
-  var charactersSheetImg = new Image();
-  charactersSheetImg.src = '/assets/characters.png';
+  // Avatar rendering from the new per-character sprite strips
+  // (assets/chars/<name>.png — 14 frames, magenta #FF00FF background).
+  // We lazily load each strip, chroma-key frame 0, cache it, and draw the
+  // head region as a headshot. Caches keyed by character index.
+  var _stripImg = {};        // charIdx -> Image
+  var _stripFrame0 = {};     // charIdx -> offscreen canvas (frame 0, transparent bg)
 
-  function drawAvatarOnCanvas(canvas, charIdx) {
-    if (!charactersSheetImg.complete) {
-      charactersSheetImg.addEventListener('load', function() { drawAvatarOnCanvas(canvas, charIdx); }, { once: true });
+  function _getFrame0(charIdx, cb) {
+    if (_stripFrame0[charIdx]) { cb(_stripFrame0[charIdx]); return; }
+
+    var img = _stripImg[charIdx];
+    if (!img) {
+      img = new Image();
+      img.src = '/assets/chars/' + (CFG.CHAR_FILES[charIdx] || 'knight') + '.png';
+      _stripImg[charIdx] = img;
+    }
+    if (!img.complete || img.naturalWidth === 0) {
+      img.addEventListener('load', function() { _getFrame0(charIdx, cb); }, { once: true });
+      img.addEventListener('error', function() { /* strip missing — skip */ }, { once: true });
       return;
     }
 
-    var cfg = CFG.SHEET;
-    var targetRgb = { r: 176, g: 181, b: 184 }; // #b0b5b8
-    var row = Math.floor(charIdx / 5);
-    var col = charIdx % 5;
-    var x = cfg.offsetX + col * (cfg.cellW + cfg.spacingX);
-    var y = cfg.offsetY + row * (cfg.cellH + cfg.spacingY);
+    // Strip is 14 frames wide; frame 0 is the leftmost cell.
+    var fw = Math.floor(img.naturalWidth / 14);
+    var fh = img.naturalHeight;
+    var off = document.createElement('canvas');
+    off.width = fw;
+    off.height = fh;
+    var octx = off.getContext('2d');
+    octx.drawImage(img, 0, 0, fw, fh, 0, 0, fw, fh);
 
-    var offCanvas = document.createElement('canvas');
-    offCanvas.width = cfg.cellW;
-    offCanvas.height = cfg.cellH;
-    var offCtx = offCanvas.getContext('2d');
-    offCtx.drawImage(charactersSheetImg, x, y, cfg.cellW, cfg.cellH, 0, 0, cfg.cellW, cfg.cellH);
-
-    var imgData = offCtx.getImageData(0, 0, cfg.cellW, cfg.cellH);
-    var pixels = imgData.data;
-    for (var j = 0; j < pixels.length; j += 4) {
-      var pr = pixels[j];
-      var pg = pixels[j+1];
-      var pb = pixels[j+2];
-      var dist = Math.sqrt(
-        Math.pow(pr - targetRgb.r, 2) +
-        Math.pow(pg - targetRgb.g, 2) +
-        Math.pow(pb - targetRgb.b, 2)
-      );
-      if (dist < cfg.chromaTol) {
-        pixels[j+3] = 0;
-      }
+    // Chroma-key magenta (#FF00FF): R high, G low, B high
+    var d = octx.getImageData(0, 0, fw, fh);
+    var p = d.data;
+    for (var i = 0; i < p.length; i += 4) {
+      if (p[i] > 180 && p[i+1] < 80 && p[i+2] > 180) p[i+3] = 0;
     }
-    offCtx.putImageData(imgData, 0, 0);
+    octx.putImageData(d, 0, 0);
 
-    canvas.width = canvas.clientWidth || 40;
-    canvas.height = canvas.clientHeight || 40;
-    var ctx = canvas.getContext('2d');
-    ctx.imageSmoothingEnabled = false;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    // Crop upper-body headshot region: x:20-80, y:10-70 of full 100x145 canvas
-    ctx.drawImage(offCanvas, 20, 10, 60, 60, 0, 0, canvas.width, canvas.height);
+    _stripFrame0[charIdx] = off;
+    cb(off);
+  }
+
+  function drawAvatarOnCanvas(canvas, charIdx) {
+    _getFrame0(charIdx, function(frame) {
+      canvas.width = canvas.width;  // clear
+      var ctx = canvas.getContext('2d');
+      ctx.imageSmoothingEnabled = false;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      // Crop the head + shoulders region from the top of the frame
+      var fw = frame.width, fh = frame.height;
+      var sx = Math.floor(fw * 0.16);
+      var sy = Math.floor(fh * 0.02);
+      var sw = Math.floor(fw * 0.68);
+      var sh = Math.floor(fh * 0.46);
+      ctx.drawImage(frame, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+    });
   }
 
   function show(screen) {
@@ -143,11 +154,8 @@ var UI = (function() {
     buildCharSelect();
 
     document.getElementById('btn-enter-game').addEventListener('click', function() {
-      SC.emit('player_ready', {
-        characterId: selectedChar,
-        specialization: selectedSpec,
-        username: myInfo && myInfo.player ? myInfo.player.username : '',
-      });
+      // GameScene._doStart emits player_ready once the scene is ready —
+      // don't emit here too (avoids double-init / teleport on the server).
       show('game');
       if (window.startPhaserGame) {
         window.startPhaserGame({
@@ -166,6 +174,11 @@ var UI = (function() {
       isHost = true;
       saveToBrowser(d.saveCode, d.player.username);
       showSaveCode(d.saveCode);
+      // Solo mode: skip the lobby entirely and go straight to character select.
+      if (d.soloMode) {
+        SC.emit('start_game');
+        return;
+      }
       updateLobbyScreen(d);
       show('lobby');
     });
@@ -227,8 +240,9 @@ var UI = (function() {
     el.innerHTML = d.players.map(function(p) {
       var charId = p.characterId || 0;
       var ch = CFG.CHARS[charId] || CFG.CHARS[0];
+      var accent = ch.accent || '#ffd700';
       return '<div class="lobby-player">' +
-        '<canvas class="lobby-avatar" width="40" height="40" data-idx="' + charId + '" style="border-radius:4px; border:2px solid ' + ch.outline + '; background:rgba(255,255,255,0.05); width:40px; height:40px; image-rendering:pixelated;"></canvas>' +
+        '<canvas class="lobby-avatar" width="40" height="40" data-idx="' + charId + '" style="border-radius:4px; border:2px solid ' + accent + '; background:rgba(255,255,255,0.05); width:40px; height:40px; image-rendering:pixelated;"></canvas>' +
         '<span>' + escHtml(p.username) + '</span>' +
         '</div>';
     }).join('');

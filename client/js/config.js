@@ -12,6 +12,10 @@ var CFG = {
     HEALTH_EMPTY: 0.07,
   },
 
+  // Health slowly regenerates while well-fed (food above the threshold)
+  HEALTH_REGEN: 0.6,
+  FOOD_REGEN_THRESHOLD: 50,
+
   // Filename order must match CHARS index (0-14)
   CHAR_FILES: [
     'knight', 'barbarian', 'dwarf', 'paladin', 'commander',
@@ -19,22 +23,23 @@ var CFG = {
     'soldier', 'blacksmith', 'farmer', 'merchant', 'maid'
   ],
 
+  // accent = UI border/tint color for avatar cards (purely cosmetic)
   CHARS: [
-    { name: 'Knight'     },
-    { name: 'Barbarian'  },
-    { name: 'Dwarf'      },
-    { name: 'Paladin'    },
-    { name: 'Commander'  },
-    { name: 'Wizard'     },
-    { name: 'Ranger'     },
-    { name: 'Assassin'   },
-    { name: 'Cleric'     },
-    { name: 'Priestess'  },
-    { name: 'Soldier'    },
-    { name: 'Blacksmith' },
-    { name: 'Farmer'     },
-    { name: 'Merchant'   },
-    { name: 'Maid'       },
+    { name: 'Knight',     accent: '#a6b2c1' },
+    { name: 'Barbarian',  accent: '#d35400' },
+    { name: 'Dwarf',      accent: '#8e6f3a' },
+    { name: 'Paladin',    accent: '#f1c40f' },
+    { name: 'Commander',  accent: '#7f8c9b' },
+    { name: 'Wizard',     accent: '#2980b9' },
+    { name: 'Ranger',     accent: '#27ae60' },
+    { name: 'Assassin',   accent: '#566573' },
+    { name: 'Cleric',     accent: '#c0392b' },
+    { name: 'Priestess',  accent: '#ecf0f1' },
+    { name: 'Soldier',    accent: '#95a5a6' },
+    { name: 'Blacksmith', accent: '#e67e22' },
+    { name: 'Farmer',     accent: '#3498db' },
+    { name: 'Merchant',   accent: '#16a085' },
+    { name: 'Maid',       accent: '#bdc3c7' },
   ],
 
   SPECS: [
