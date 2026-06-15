@@ -3,9 +3,11 @@ const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
 
-const { createLobby, joinLobby, leaveLobby, startGame, socketToPlayer, playerToSocket } = require('./lobby');
-const { handlePlayerReady, handlePlayerMove, handleDisconnect } = require('./gameState');
+const { createLobby, joinLobby, leaveLobby, startGame, getLobbyBySocket, socketToPlayer, playerToSocket } = require('./lobby');
+const { handlePlayerReady, handlePlayerMove, handleDisconnect, broadcastScoreboards } = require('./gameState');
 const { startJob, cancelJob, buyFood, tickJobs } = require('./jobs');
+
+const { stmts } = require('./db');
 
 const app = express();
 const server = http.createServer(app);
@@ -56,6 +58,20 @@ io.on('connection', (socket) => {
     catch (e) { console.error('buy_food:', e); }
   });
 
+  socket.on('chat_message', (data) => {
+    try {
+      const result = getLobbyBySocket(socket.id);
+      if (!result || !result.lobby) return;
+      let text = (data && data.text ? String(data.text) : '').slice(0, 120).trim();
+      if (!text) return;
+      const db = stmts.findById.get(result.playerId);
+      const username = (db && db.username) ? db.username : 'Player';
+      // Broadcast to everyone in the lobby; flag the sender's own copy.
+      socket.to(result.lobby.code).emit('chat_message', { username, text });
+      socket.emit('chat_message', { username, text, self: true });
+    } catch (e) { console.error('chat_message:', e); }
+  });
+
   socket.on('disconnect', () => {
     console.log(`[-] ${socket.id}`);
     const info = socketToPlayer.get(socket.id);
@@ -72,6 +88,12 @@ setInterval(() => {
   try { tickJobs(io, playerToSocket); }
   catch (e) { console.error('tickJobs:', e); }
 }, 500);
+
+// Scoreboard broadcast — runs every 2s
+setInterval(() => {
+  try { broadcastScoreboards(io); }
+  catch (e) { console.error('broadcastScoreboards:', e); }
+}, 2000);
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`AgarCity running on http://localhost:${PORT}`));

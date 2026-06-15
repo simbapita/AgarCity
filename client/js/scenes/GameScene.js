@@ -12,10 +12,16 @@ var GameScene = new Phaser.Class({
     this._eKey           = null;
     this._shiftKey       = null;
     this._moveTimer      = 0;
+    this._minimapTimer   = 0;
     this._cityMap        = null;
     this._npcs           = [];
     this._cars           = [];
     this._spec           = 'NONE';
+    this._mKey           = null;
+    this._escKey         = null;
+    this._tabKey         = null;
+    this._scoreboard     = [];
+    this._scoreVisible   = false;
   },
 
   create: function() {
@@ -38,11 +44,26 @@ var GameScene = new Phaser.Class({
     });
     self._eKey     = self.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
     self._shiftKey = self.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
+    self._mKey     = self.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.M);
+    self._escKey   = self.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
+    self._tabKey   = self.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.TAB);
+    // Stop TAB from moving browser focus out of the canvas
+    self.input.keyboard.addCapture('TAB');
 
     self._drawZoneLabels();
     self._drawFoodStoreMarkers();
     self._spawnNPCs();
     self._spawnCars();
+
+    // Minimap + chat (self-contained modules). GameScene.create() runs at page
+    // load (before login), so keep the minimap hidden until the player spawns.
+    if (window.Minimap) { Minimap.init(self._cityMap); Minimap.hide(); }
+    if (window.Chat)    Chat.init();
+
+    SC.on('scoreboard', function(d) {
+      self._scoreboard = (d && d.players) || [];
+      if (self._scoreVisible) self._renderScoreboard();
+    });
 
     JobSystem.init(function(event) {
       if (!self._myPlayer) return;
@@ -117,6 +138,7 @@ var GameScene = new Phaser.Class({
     self._myPlayer = { sprite: sprite, nameText: nameText, data: ps };
     self._spec = ps.specialization || 'NONE';
     self.cameras.main.startFollow(sprite, true, 0.1, 0.1);
+    if (window.Minimap) Minimap.show();
     self._updateHUD(ps);
   },
 
@@ -168,11 +190,26 @@ var GameScene = new Phaser.Class({
     var ps      = self._myPlayer.data;
     var cur     = self._cursors;
     var wasd    = self._wasd;
-    var running = self._shiftKey.isDown;
+    var chatOpen = !!(window.Chat && Chat.isOpen());
+    var running = self._shiftKey.isDown && !chatOpen;
     var working = JobSystem.isWorking();
 
+    // Toggle minimap (M) and scoreboard (hold Tab) — ignored while typing in chat
+    if (!chatOpen) {
+      if (Phaser.Input.Keyboard.JustDown(self._mKey) && window.Minimap) Minimap.toggle();
+
+      var tabDown = self._tabKey.isDown;
+      if (tabDown && !self._scoreVisible) { self._scoreVisible = true; self._renderScoreboard(); }
+      else if (!tabDown && self._scoreVisible) { self._scoreVisible = false; self._hideScoreboard(); }
+
+      // Cancel an in-progress job with Esc
+      if (working && Phaser.Input.Keyboard.JustDown(self._escKey)) {
+        SC.emit('cancel_job');
+      }
+    }
+
     var vx = 0, vy = 0;
-    if (!working) {
+    if (!working && !chatOpen) {
       if (cur.left.isDown  || wasd.left.isDown)  vx = -1;
       if (cur.right.isDown || wasd.right.isDown) vx =  1;
       if (cur.up.isDown    || wasd.up.isDown)    vy = -1;
@@ -220,10 +257,15 @@ var GameScene = new Phaser.Class({
     } else {
       ps.food = Math.max(0, ps.food - CFG.DRAIN.FOOD_IDLE * dt);
     }
-    if (ps.food <= 0) ps.health = Math.max(0, ps.health - CFG.DRAIN.HEALTH_EMPTY * dt);
+    if (ps.food <= 0) {
+      ps.health = Math.max(0, ps.health - CFG.DRAIN.HEALTH_EMPTY * dt);
+    } else if (ps.food > CFG.FOOD_REGEN_THRESHOLD && ps.health < 100) {
+      // Well-fed: slowly recover health
+      ps.health = Math.min(100, ps.health + CFG.HEALTH_REGEN * dt);
+    }
     self._updateHUD(ps);
 
-    var eJustPressed = Phaser.Input.Keyboard.JustDown(self._eKey);
+    var eJustPressed = !chatOpen && Phaser.Input.Keyboard.JustDown(self._eKey);
     JobSystem.update(sp.x, sp.y, eJustPressed, self._spec);
 
     // Interpolate and animate remote players
@@ -242,6 +284,18 @@ var GameScene = new Phaser.Class({
       self._updateAnim(rp.sprite, rp.data.characterId || 0, rpState, rp.data.direction || 'down');
     });
 
+    // Update minimap ~10x/sec (cheap, but no need every frame)
+    self._minimapTimer += delta;
+    if (window.Minimap && self._minimapTimer >= 100) {
+      self._minimapTimer = 0;
+      var remotePts = [];
+      Object.keys(self._remotePlayers).forEach(function(pid) {
+        var r = self._remotePlayers[pid];
+        remotePts.push({ x: r.sprite.x, y: r.sprite.y });
+      });
+      Minimap.update({ x: sp.x, y: sp.y }, remotePts);
+    }
+
     self._moveTimer += delta;
     if (self._moveTimer >= 67) {
       self._moveTimer = 0;
@@ -254,6 +308,34 @@ var GameScene = new Phaser.Class({
         working:   working,
       });
     }
+  },
+
+  _renderScoreboard: function() {
+    var el = document.getElementById('scoreboard');
+    if (!el) return;
+    var rows = this._scoreboard || [];
+    var html = '<div class="sb-title">&#127942; SCOREBOARD</div>';
+    if (!rows.length) {
+      html += '<div class="sb-empty">No data yet…</div>';
+    } else {
+      html += '<table class="sb-table"><tr><th>#</th><th>Player</th><th>&#128176;</th><th>&#11088; XP</th></tr>';
+      rows.forEach(function(r, i) {
+        html += '<tr>' +
+          '<td>' + (i + 1) + '</td>' +
+          '<td>' + String(r.username).replace(/[<>&]/g, '') + '</td>' +
+          '<td>' + r.tokens + '</td>' +
+          '<td>' + r.jobXp + '</td>' +
+          '</tr>';
+      });
+      html += '</table>';
+    }
+    el.innerHTML = html;
+    el.style.display = 'block';
+  },
+
+  _hideScoreboard: function() {
+    var el = document.getElementById('scoreboard');
+    if (el) el.style.display = 'none';
   },
 
   // Drive Phaser's animation system. ignoreIfPlaying=true stops restart on same anim.
@@ -308,7 +390,7 @@ var GameScene = new Phaser.Class({
       g.strokeCircle(s.x, s.y, s.radius);
       g.fillStyle(0xf39c12, 0.08);
       g.fillCircle(s.x, s.y, s.radius);
-      self.add.text(s.x, s.y - s.radius - 8, '🍎 ' + s.name, {
+      self.add.text(s.x, s.y - s.radius - 8, '&#127822; ' + s.name, {
         fontSize: '7px', fontFamily: "'Press Start 2P'",
         color: '#f39c12', stroke: '#000000', strokeThickness: 3,
       }).setOrigin(0.5, 1).setDepth(3);

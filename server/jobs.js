@@ -1,5 +1,6 @@
 const { stmts } = require('./db');
 const { getLobbyBySocket, socketToPlayer } = require('./lobby');
+const { applyServerStats } = require('./gameState');
 
 const TIERS = {
   TECH:         [
@@ -117,6 +118,7 @@ function buyFood(socket, data) {
   const newTokens = db.tokens - cost;
   const newFood = Math.min(100, (db.food || 100) + restore);
   stmts.updateStats.run({ id: playerId, tokens: newTokens, health: db.health, food: newFood });
+  applyServerStats(playerId, { tokens: newTokens, food: newFood });
   socket.emit('food_bought', { tokens: newTokens, food: newFood, cost, restored: restore });
 }
 
@@ -148,6 +150,7 @@ function tickJobs(io, playerToSocket) {
       outfit: db.outfit || '{}',
     });
     stmts.updateStats.run({ id: playerId, tokens: newTokens, health: db.health, food: db.food });
+    applyServerStats(playerId, { tokens: newTokens, jobXp: newXp, jobTier: newTier });
 
     const socketId = playerToSocket.get(playerId);
     if (socketId) {

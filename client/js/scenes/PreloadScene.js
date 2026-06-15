@@ -11,6 +11,14 @@ var PreloadScene = new Phaser.Class({
     var fill = self.add.rectangle(200, 300, 0, 10, 0xffffff);
     self.load.on('progress', function(v) { fill.width = 400 * v; fill.x = 200 + fill.width / 2; });
 
+    // Track which strips fail to load so we can substitute a placeholder.
+    self._failed = {};
+    self.load.on('loaderror', function(file) {
+      if (file && file.key && file.key.indexOf('charraw_') === 0) {
+        self._failed[file.key] = true;
+      }
+    });
+
     // Load each character strip as a plain image; chroma-key happens in create()
     CFG.CHAR_FILES.forEach(function(name, i) {
       self.load.image('charraw_' + i, 'assets/chars/' + name + '.png');
@@ -32,30 +40,44 @@ var PreloadScene = new Phaser.Class({
     //  [10-13] work   6 fps
     // Background: solid magenta #FF00FF (chroma-keyed out below)
 
+    var FRAMES = 14; // idle(2) + walk(4) + run(4) + work(4)
+
     CFG.CHAR_FILES.forEach(function(name, i) {
-      var raw = self.textures.get('charraw_' + i).getSourceImage();
-      var w   = raw.naturalWidth  || raw.width;
-      var h   = raw.naturalHeight || raw.height;
+      var raw = self._failed['charraw_' + i] ? null : self.textures.get('charraw_' + i).getSourceImage();
+      var w   = raw ? (raw.naturalWidth  || raw.width)  : 0;
+      var h   = raw ? (raw.naturalHeight || raw.height) : 0;
 
-      // Draw to canvas and remove magenta background
-      var canvas = document.createElement('canvas');
-      canvas.width  = w;
-      canvas.height = h;
-      var ctx = canvas.getContext('2d');
-      ctx.drawImage(raw, 0, 0);
+      var canvas, frameW, frameH;
 
-      var imgData = ctx.getImageData(0, 0, w, h);
-      var px = imgData.data;
-      for (var j = 0; j < px.length; j += 4) {
-        // Magenta: R high, G low, B high
-        if (px[j] > 180 && px[j+1] < 80 && px[j+2] > 180) {
-          px[j+3] = 0;
+      // Need a strip at least FRAMES px wide to slice; otherwise use a placeholder.
+      if (raw && w >= FRAMES && h > 0) {
+        canvas = document.createElement('canvas');
+        canvas.width  = w;
+        canvas.height = h;
+        var ctx = canvas.getContext('2d');
+        ctx.drawImage(raw, 0, 0);
+
+        // Chroma-key magenta (#FF00FF): R high, G low, B high
+        var imgData = ctx.getImageData(0, 0, w, h);
+        var px = imgData.data;
+        for (var j = 0; j < px.length; j += 4) {
+          if (px[j] > 180 && px[j+1] < 80 && px[j+2] > 180) px[j+3] = 0;
         }
+        ctx.putImageData(imgData, 0, 0);
+
+        // Frame size derived from the actual image so non-896x96 strips still work.
+        frameW = Math.floor(w / FRAMES);
+        frameH = h;
+      } else {
+        // Fallback placeholder so the game still runs without art.
+        var ph = self._makePlaceholderStrip(i, FRAMES);
+        canvas = ph.canvas;
+        frameW = ph.frameW;
+        frameH = ph.frameH;
       }
-      ctx.putImageData(imgData, 0, 0);
 
       // Register as Phaser spritesheet
-      self.textures.addSpriteSheet('char_' + i, canvas, { frameWidth: 64, frameHeight: 96 });
+      self.textures.addSpriteSheet('char_' + i, canvas, { frameWidth: frameW, frameHeight: frameH });
 
       // Register all four animations
       var k = 'char_' + i;
@@ -69,9 +91,10 @@ var PreloadScene = new Phaser.Class({
       avCanvas.width  = 60;
       avCanvas.height = 60;
       var avCtx = avCanvas.getContext('2d');
-      // Frame 0 occupies x=0..63, y=0..95 on the strip.
-      // Crop centre-upper area (face + upper torso)
-      avCtx.drawImage(canvas, 4, 0, 56, 64, 0, 0, 60, 60);
+      var sx = Math.floor(frameW * 0.16), sy = Math.floor(frameH * 0.02);
+      var sw = Math.floor(frameW * 0.68), sh = Math.floor(frameH * 0.46);
+      avCtx.imageSmoothingEnabled = false;
+      avCtx.drawImage(canvas, sx, sy, sw, sh, 0, 0, 60, 60);
       self.textures.addCanvas('avatar_' + i, avCanvas);
     });
 
@@ -98,5 +121,39 @@ var PreloadScene = new Phaser.Class({
     cg.destroy();
 
     self.scene.start('GameScene');
+  },
+
+  // Build a simple animated placeholder strip (14 frames) used when a
+  // character's art file is missing, so the game remains fully playable.
+  _makePlaceholderStrip: function(charIdx, frames) {
+    var frameW = 64, frameH = 96;
+    var accent = (CFG.CHARS[charIdx] && CFG.CHARS[charIdx].accent) || '#ffd700';
+    var cv = document.createElement('canvas');
+    cv.width  = frameW * frames;
+    cv.height = frameH;
+    var c = cv.getContext('2d');
+
+    for (var f = 0; f < frames; f++) {
+      var ox = f * frameW;
+      // Animate a little vertical bob + leg swing per frame
+      var bob = Math.abs(Math.sin(f * 0.9)) * 4;
+      var cx = ox + frameW / 2;
+      // body
+      c.fillStyle = accent;
+      c.fillRect(cx - 9, 34 + bob, 18, 30);
+      // head
+      c.beginPath();
+      c.arc(cx, 26 + bob, 11, 0, Math.PI * 2);
+      c.fill();
+      // legs (swing on even/odd frames)
+      var swing = (f % 2 === 0) ? 4 : -4;
+      c.fillRect(cx - 8, 64 + bob, 6, 20 + swing);
+      c.fillRect(cx + 2, 64 + bob, 6, 20 - swing);
+      // outline accent
+      c.strokeStyle = 'rgba(0,0,0,0.35)';
+      c.lineWidth = 2;
+      c.strokeRect(cx - 9, 34 + bob, 18, 30);
+    }
+    return { canvas: cv, frameW: frameW, frameH: frameH };
   },
 });
