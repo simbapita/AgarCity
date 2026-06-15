@@ -28,16 +28,10 @@ var CFG = {
     { name: 'Maid',       body: '#1abc9c', outline: '#16a085' },
   ],
 
-  // Calibrated sprite sheet coordinate metadata
+  // Sprite sheet metadata — chromaTol lowered to 30 to preserve light/silver armor
   SHEET: {
-    offsetX: 50,
-    offsetY: 35,
-    cellW: 100,
-    cellH: 145,
-    spacingX: 95,
-    spacingY: 28,
     chromaColor: '#b0b5b8',
-    chromaTol: 50
+    chromaTol: 30
   },
 
   SPECS: [

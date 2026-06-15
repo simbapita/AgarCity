@@ -215,30 +215,34 @@ var GameScene = new Phaser.Class({
     }
   },
 
-  // Flawless walk animation: fixed origin, proper squish-stretch, no jitter.
+  // Walk animation: body lean sway + squish-stretch gives natural walking feel.
+  // phase drives both the step bob (abs sin = 2 peaks/cycle) and body lean (sin alternates L/R).
   _animateSprite: function(sprite, moving, direction, time) {
-    sprite.angle = 0;
-    sprite.setOrigin(0.5, 0.5); // fixed — never change this per-frame
+    sprite.setOrigin(0.5, 0.5);
 
-    // Horizontal facing: only update on left/right, retain on up/down
     if      (direction === 'left')  sprite.flipX = true;
     else if (direction === 'right') sprite.flipX = false;
 
     var baseW = 36;
     var baseH = 52;
-    var t = time % 628318; // prevent float precision loss at large time values (~10min loop)
+    var t = time % 628318;
 
     if (moving) {
-      // Stride cycle: abs(sin) gives a smooth 0→1→0 bump per half-step.
-      // At CFG.SPEED=160, frequency 0.0085 rad/ms gives ~1.3 full bob cycles/sec — feels natural.
-      var bob = Math.abs(Math.sin(t * 0.0085));
-      // Stretch up at peak (taller), compensate width (narrower) — classic squish-stretch
-      var stretchY = 1.0 + bob * 0.09;  // max +9% taller at stride peak
-      var squishX  = 1.0 - bob * 0.04;  // max -4% narrower to compensate
-      sprite.setDisplaySize(baseW * squishX, baseH * stretchY);
+      // ~1.9 steps/sec: sin oscillates one full L+R cycle per ~524ms
+      var phase = t * 0.012;
+      var bob   = Math.abs(Math.sin(phase)); // 0 at footfall, 1 at mid-stride
+
+      // Body lean: alternates ±4° every step (key visual cue of real walking)
+      sprite.angle = Math.sin(phase) * 4;
+
+      // Squish-stretch: taller+narrower at mid-stride, normal at footfall
+      sprite.setDisplaySize(
+        baseW * (1.0 - bob * 0.04),
+        baseH * (1.0 + bob * 0.08)
+      );
     } else {
-      // Idle breathing: very slow, very subtle — just enough to feel alive
-      var breathe = Math.sin(t * 0.0018); // ~1 breath per 3.5 sec
+      sprite.angle = 0;
+      var breathe = Math.sin(t * 0.0018);
       sprite.setDisplaySize(
         baseW * (1.0 - breathe * 0.010),
         baseH * (1.0 + breathe * 0.016)
