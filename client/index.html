@@ -18,7 +18,6 @@
       width: 100vw;
     }
 
-    /* ── Phaser canvas container ── */
     #game-canvas {
       position: fixed;
       top: 0; left: 0;
@@ -26,7 +25,6 @@
       z-index: 0;
     }
 
-    /* ── Overlay screens ── */
     .screen {
       position: fixed;
       top: 0; left: 0;
@@ -114,6 +112,21 @@
     .btn-row { display: flex; gap: 10px; margin-top: 10px; }
     .btn-row .btn { flex: 1; }
 
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 14px 0 4px;
+      font-size: 7px;
+      color: #444;
+    }
+    .divider::before, .divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: #333355;
+    }
+
     #error-msg {
       display: none;
       background: #7b1111;
@@ -126,7 +139,6 @@
       text-align: center;
     }
 
-    /* ── Save code banner ── */
     #save-code-banner {
       display: none;
       position: fixed;
@@ -146,7 +158,6 @@
     }
     #save-code-banner .code { color: #ffd700; font-size: 13px; letter-spacing: 3px; }
 
-    /* ── Lobby screen ── */
     #lobby-code-box {
       text-align: center;
       margin: 16px 0 20px;
@@ -197,10 +208,7 @@
     .wait-msg.waiting { color: #f39c12; background: rgba(243,156,18,0.1); }
     .wait-msg.ready   { color: #2ecc71; background: rgba(46,204,113,0.1); }
 
-    /* ── Character select ── */
-    .cs-panel {
-      max-width: 680px;
-    }
+    .cs-panel { max-width: 680px; }
 
     .cs-section-title {
       font-size: 8px;
@@ -263,7 +271,6 @@
     .spec-name { font-size: 6px; color: #aaa; text-align: center; }
     .spec-option.selected .spec-name { color: #ffd700; }
 
-    /* ── Job interaction prompt ── */
     #interaction-prompt {
       display: none;
       position: fixed;
@@ -293,7 +300,6 @@
     .ip-label { font-size: 9px; font-family: 'Press Start 2P', monospace; color: #ffd700; }
     .ip-rewards { font-size: 7px; font-family: 'Press Start 2P', monospace; color: #aaa; }
 
-    /* ── Job progress overlay ── */
     #job-progress-overlay {
       display: none;
       position: fixed;
@@ -336,7 +342,6 @@
       color: #888;
     }
 
-    /* ── Reward popup ── */
     @keyframes rewardPop {
       0%   { opacity:0; transform:translateX(-50%) translateY(10px); }
       15%  { opacity:1; transform:translateX(-50%) translateY(0); }
@@ -361,14 +366,8 @@
       pointer-events: none;
     }
 
-    /* ── Spec badge on HUD ── */
-    #hud-spec {
-      font-size: 7px;
-      color: #888;
-      white-space: nowrap;
-    }
+    #hud-spec { font-size: 7px; color: #888; white-space: nowrap; }
 
-    /* ── HUD ── */
     #hud {
       display: none;
       position: fixed;
@@ -382,9 +381,7 @@
     }
 
     .hud-bar-group { display: flex; align-items: center; gap: 8px; }
-
     .hud-label { font-size: 7px; color: #888; white-space: nowrap; }
-
     .hud-bar-bg {
       width: 100px; height: 10px;
       background: #222233;
@@ -397,30 +394,22 @@
       border-radius: 2px;
       transition: width 0.3s, background 0.5s;
     }
-
     .hud-stat { font-size: 8px; color: #ffd700; white-space: nowrap; }
     .hud-sep { color: #333; font-size: 10px; }
-
-    #hud-controls {
-      margin-left: auto;
-      font-size: 7px;
-      color: #555;
-    }
+    #hud-controls { margin-left: auto; font-size: 7px; color: #555; }
   </style>
 </head>
 <body>
 
-  <!-- Phaser canvas mounts here -->
   <div id="game-canvas"></div>
 
-  <!-- Save code banner (toast) -->
   <div id="save-code-banner">
     <span>⭐ YOUR SAVE CODE:</span>
     <span class="code" id="your-save-code">············</span>
     <span style="color:#666;font-size:7px">Write this down!</span>
   </div>
 
-  <!-- ── START SCREEN ── -->
+  <!-- START SCREEN -->
   <div class="screen" id="screen-start">
     <div class="panel">
       <h1>AGARCITY</h1>
@@ -429,24 +418,28 @@
       <label>YOUR NAME</label>
       <input type="text" id="input-name" placeholder="Enter name..." maxlength="16" autocomplete="off" />
 
-      <label>LOBBY CODE <span style="color:#555">(to join existing lobby)</span></label>
-      <input type="text" id="input-lobbycode" placeholder="e.g. ABC123" maxlength="6"
-             style="text-transform:uppercase;letter-spacing:3px" autocomplete="off" />
-
       <label>SAVE CODE <span style="color:#555">(optional — restores your progress)</span></label>
       <input type="text" id="input-savecode" placeholder="12-character code" maxlength="12"
              style="text-transform:uppercase;letter-spacing:2px" autocomplete="off" />
 
-      <div class="btn-row" style="margin-top:20px">
-        <button class="btn" id="btn-create">Create Lobby</button>
+      <button class="btn" id="btn-solo" style="margin-top:20px">▶ Play Solo</button>
+
+      <div class="divider">or play with friends</div>
+
+      <div class="btn-row">
+        <button class="btn btn-secondary" id="btn-create">Create Lobby</button>
         <button class="btn btn-secondary" id="btn-join">Join Lobby</button>
       </div>
+
+      <label>LOBBY CODE <span style="color:#555">(to join existing lobby)</span></label>
+      <input type="text" id="input-lobbycode" placeholder="e.g. ABC123" maxlength="6"
+             style="text-transform:uppercase;letter-spacing:3px" autocomplete="off" />
 
       <div id="error-msg"></div>
     </div>
   </div>
 
-  <!-- ── LOBBY SCREEN ── -->
+  <!-- LOBBY SCREEN -->
   <div class="screen" id="screen-lobby" style="display:none">
     <div class="panel">
       <h1>LOBBY</h1>
@@ -468,7 +461,7 @@
     </div>
   </div>
 
-  <!-- ── CHARACTER SELECT ── -->
+  <!-- CHARACTER SELECT -->
   <div class="screen" id="screen-charselect" style="display:none">
     <div class="panel cs-panel">
       <h1>CHOOSE YOUR CHARACTER</h1>
@@ -484,23 +477,18 @@
     </div>
   </div>
 
-  <!-- ── GAME SCREEN (invisible — Phaser renders underneath) ── -->
   <div id="screen-game" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;z-index:5;pointer-events:none;"></div>
 
-  <!-- ── Job interaction prompt ── -->
   <div id="interaction-prompt"></div>
 
-  <!-- ── Job progress overlay ── -->
   <div id="job-progress-overlay">
     <div id="job-progress-name">Working...</div>
     <div class="job-bar-bg"><div id="job-progress-fill"></div></div>
     <div id="job-time-left">0s</div>
   </div>
 
-  <!-- ── Reward popup ── -->
   <div id="reward-popup"></div>
 
-  <!-- ── HUD ── -->
   <div id="hud">
     <div class="hud-bar-group">
       <span class="hud-label">❤ HP</span>
@@ -524,11 +512,8 @@
     <div id="hud-controls">WASD move · E interact</div>
   </div>
 
-  <!-- Libraries (order matters) -->
   <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
   <script src="/socket.io/socket.io.js"></script>
-
-  <!-- Game scripts -->
   <script src="/js/config.js"></script>
   <script src="/js/city.js"></script>
   <script src="/js/socket-client.js"></script>

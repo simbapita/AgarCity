@@ -26,26 +26,39 @@ var UI = (function() {
     setTimeout(function() { if (el) el.style.display = 'none'; }, 4000);
   }
 
+  function _getName() {
+    return document.getElementById('input-name').value.trim();
+  }
+
+  function _getSaveCode() {
+    return document.getElementById('input-savecode').value.trim() || null;
+  }
+
   function init() {
-    // Start screen
-    document.getElementById('btn-create').addEventListener('click', function() {
-      var name = document.getElementById('input-name').value.trim();
+    // Solo play
+    document.getElementById('btn-solo').addEventListener('click', function() {
+      var name = _getName();
       if (!name) { showError('Enter your name first.'); return; }
-      var saveCode = document.getElementById('input-savecode').value.trim();
-      var soloMode = document.getElementById('chk-solo') && document.getElementById('chk-solo').checked;
-      SC.emit('create_lobby', { username: name, saveCode: saveCode || null, soloMode: false });
+      SC.emit('create_lobby', { username: name, saveCode: _getSaveCode(), soloMode: true });
     });
 
+    // Create multiplayer lobby
+    document.getElementById('btn-create').addEventListener('click', function() {
+      var name = _getName();
+      if (!name) { showError('Enter your name first.'); return; }
+      SC.emit('create_lobby', { username: name, saveCode: _getSaveCode(), soloMode: false });
+    });
+
+    // Join existing lobby
     document.getElementById('btn-join').addEventListener('click', function() {
-      var name = document.getElementById('input-name').value.trim();
+      var name = _getName();
       var code = document.getElementById('input-lobbycode').value.trim();
       if (!name) { showError('Enter your name first.'); return; }
       if (!code) { showError('Enter a lobby code.'); return; }
-      var saveCode = document.getElementById('input-savecode').value.trim();
-      SC.emit('join_lobby', { username: name, saveCode: saveCode || null, code: code });
+      SC.emit('join_lobby', { username: name, saveCode: _getSaveCode(), code: code });
     });
 
-    // Auto-fill save code from localStorage
+    // Auto-fill from localStorage
     var saved = localStorage.getItem('agarcity_save');
     if (saved) {
       try {
@@ -70,7 +83,7 @@ var UI = (function() {
       });
     });
 
-    // Char select screen
+    // Char select
     buildCharSelect();
 
     document.getElementById('btn-enter-game').addEventListener('click', function() {
@@ -80,8 +93,6 @@ var UI = (function() {
         username: myInfo && myInfo.player ? myInfo.player.username : '',
       });
       show('game');
-
-      // Trigger Phaser game start
       if (window.startPhaserGame) {
         window.startPhaserGame({
           characterId: selectedChar,
@@ -141,7 +152,7 @@ var UI = (function() {
 
   function updateLobbyScreen(d) {
     var codeEl = document.getElementById('lobby-code');
-    if (codeEl) codeEl.textContent = d.code || (d.player && myInfo && myInfo.lobbyCode) || '';
+    if (codeEl) codeEl.textContent = d.code || (myInfo && myInfo.lobbyCode) || '';
     updateLobbyPlayers(d);
   }
 
@@ -172,7 +183,6 @@ var UI = (function() {
   }
 
   function buildCharSelect() {
-    // Character grid
     var charGrid = document.getElementById('char-grid');
     if (charGrid) {
       charGrid.innerHTML = CFG.CHARS.map(function(c, i) {
@@ -191,7 +201,6 @@ var UI = (function() {
       });
     }
 
-    // Specialization grid
     var specGrid = document.getElementById('spec-grid');
     if (specGrid) {
       specGrid.innerHTML = CFG.SPECS.map(function(s, i) {
