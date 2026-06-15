@@ -3,18 +3,19 @@ var GameScene = new Phaser.Class({
 
   initialize: function() {
     Phaser.Scene.call(this, { key: 'GameScene' });
-    this._ready = false;
-    this._pendingStart = null;
-    this._remotePlayers = {};
-    this._myPlayer = null;
-    this._cursors = null;
-    this._wasd = null;
-    this._eKey = null;
-    this._moveTimer = 0;
-    this._cityMap = null;
-    this._npcs = [];
-    this._cars = [];
-    this._spec = 'NONE';
+    this._ready          = false;
+    this._pendingStart   = null;
+    this._remotePlayers  = {};
+    this._myPlayer       = null;
+    this._cursors        = null;
+    this._wasd           = null;
+    this._eKey           = null;
+    this._shiftKey       = null;
+    this._moveTimer      = 0;
+    this._cityMap        = null;
+    this._npcs           = [];
+    this._cars           = [];
+    this._spec           = 'NONE';
   },
 
   create: function() {
@@ -23,8 +24,7 @@ var GameScene = new Phaser.Class({
     var H = CFG.WORLD_H * CFG.TILE;
 
     self._cityMap = self.registry.get('cityMap');
-
-    self.add.image(W/2, H/2, 'city');
+    self.add.image(W / 2, H / 2, 'city');
 
     self.physics.world.setBounds(0, 0, W, H);
     self.cameras.main.setBounds(0, 0, W, H);
@@ -36,7 +36,8 @@ var GameScene = new Phaser.Class({
       left:  Phaser.Input.Keyboard.KeyCodes.A,
       right: Phaser.Input.Keyboard.KeyCodes.D,
     });
-    self._eKey = self.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
+    self._eKey     = self.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
+    self._shiftKey = self.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
 
     self._drawZoneLabels();
     self._drawFoodStoreMarkers();
@@ -47,8 +48,8 @@ var GameScene = new Phaser.Class({
       if (!self._myPlayer) return;
       var ps = self._myPlayer.data;
       if (event.type === 'job_complete') {
-        ps.tokens = event.data.newTokens;
-        ps.jobXp  = event.data.newXp;
+        ps.tokens  = event.data.newTokens;
+        ps.jobXp   = event.data.newXp;
         ps.jobTier = event.data.newTier;
         self._updateHUD(ps);
       } else if (event.type === 'food_bought') {
@@ -64,11 +65,14 @@ var GameScene = new Phaser.Class({
       self._ready = true;
     });
 
-    SC.on('player_joined_game', function(ps) { self._addRemotePlayer(ps); });
-    SC.on('player_left_game',   function(d)  { self._removeRemotePlayer(d.playerId); });
-    SC.on('player_moved',       function(d)  { self._updateRemotePlayer(d); });
-    SC.on('position_correction', function(d) {
-      if (self._myPlayer) { self._myPlayer.sprite.x = d.x; self._myPlayer.sprite.y = d.y; }
+    SC.on('player_joined_game',  function(ps) { self._addRemotePlayer(ps); });
+    SC.on('player_left_game',    function(d)  { self._removeRemotePlayer(d.playerId); });
+    SC.on('player_moved',        function(d)  { self._updateRemotePlayer(d); });
+    SC.on('position_correction', function(d)  {
+      if (self._myPlayer) {
+        self._myPlayer.sprite.x = d.x;
+        self._myPlayer.sprite.y = d.y;
+      }
     });
 
     if (self._pendingStart) {
@@ -81,14 +85,13 @@ var GameScene = new Phaser.Class({
 
   _doStart: function(data) {
     var self = this;
-    self._charId = data.characterId || 0;
-    self._spec   = data.specialization || 'TECH';
+    self._charId     = data.characterId || 0;
+    self._spec       = data.specialization || 'TECH';
     self._playerData = data.player || {};
-
     SC.emit('player_ready', {
       characterId:    self._charId,
       specialization: self._spec,
-      username: self._playerData.username || 'Player',
+      username:       self._playerData.username || 'Player',
     });
   },
 
@@ -99,12 +102,14 @@ var GameScene = new Phaser.Class({
       self._myPlayer.nameText.destroy();
     }
 
-    var sprite = self.physics.add.image(ps.x, ps.y, 'player_' + ps.characterId);
+    var charId = ps.characterId || 0;
+    var sprite = self.physics.add.sprite(ps.x, ps.y, 'char_' + charId, 0);
     sprite.setCollideWorldBounds(true).setDepth(10);
     sprite.setOrigin(0.5, 0.5);
-    sprite.setDisplaySize(36, 52);
+    sprite.setDisplaySize(48, 72);
+    sprite.anims.play('char_' + charId + '_idle', true);
 
-    var nameText = self.add.text(ps.x, ps.y - 34, ps.username, {
+    var nameText = self.add.text(ps.x, ps.y - 42, ps.username, {
       fontSize: '9px', fontFamily: "'Press Start 2P'",
       color: '#ffffff', stroke: '#000000', strokeThickness: 3,
     }).setOrigin(0.5).setDepth(11);
@@ -118,11 +123,13 @@ var GameScene = new Phaser.Class({
   _addRemotePlayer: function(ps) {
     var self = this;
     if (self._remotePlayers[ps.playerId]) return;
-    var sprite = self.add.image(ps.x, ps.y, 'player_' + ps.characterId)
+    var charId = ps.characterId || 0;
+    var sprite = self.add.sprite(ps.x, ps.y, 'char_' + charId, 0)
       .setDepth(9).setAlpha(0.85)
       .setOrigin(0.5, 0.5)
-      .setDisplaySize(36, 52);
-    var nameText = self.add.text(ps.x, ps.y - 34, ps.username, {
+      .setDisplaySize(48, 72);
+    sprite.anims.play('char_' + charId + '_idle', true);
+    var nameText = self.add.text(ps.x, ps.y - 42, ps.username, {
       fontSize: '9px', fontFamily: "'Press Start 2P'",
       color: '#dddddd', stroke: '#000000', strokeThickness: 3,
     }).setOrigin(0.5).setDepth(10);
@@ -140,114 +147,120 @@ var GameScene = new Phaser.Class({
   _updateRemotePlayer: function(d) {
     var rp = this._remotePlayers[d.playerId];
     if (!rp) return;
-    rp.data.targetX = d.x;
-    rp.data.targetY = d.y;
+    rp.data.targetX   = d.x;
+    rp.data.targetY   = d.y;
     rp.data.direction = d.direction;
-    rp.data.moving = d.moving;
+    rp.data.moving    = d.moving;
+    rp.data.running   = d.running;
+    rp.data.working   = d.working;
   },
 
   update: function(time, delta) {
     var self = this;
-    var dt = delta / 1000;
+    var dt   = delta / 1000;
 
     self._updateNPCs(dt);
     self._updateCars(dt);
 
     if (!self._myPlayer) return;
 
-    var sp = self._myPlayer.sprite;
+    var sp      = self._myPlayer.sprite;
+    var ps      = self._myPlayer.data;
+    var cur     = self._cursors;
+    var wasd    = self._wasd;
+    var running = self._shiftKey.isDown;
+    var working = JobSystem.isWorking();
+
     var vx = 0, vy = 0;
-    var cur = self._cursors, wasd = self._wasd;
-
-    if (cur.left.isDown  || wasd.left.isDown)  vx = -CFG.SPEED;
-    if (cur.right.isDown || wasd.right.isDown) vx =  CFG.SPEED;
-    if (cur.up.isDown    || wasd.up.isDown)    vy = -CFG.SPEED;
-    if (cur.down.isDown  || wasd.down.isDown)  vy =  CFG.SPEED;
-
-    if (JobSystem.isWorking()) { vx = 0; vy = 0; }
+    if (!working) {
+      if (cur.left.isDown  || wasd.left.isDown)  vx = -1;
+      if (cur.right.isDown || wasd.right.isDown) vx =  1;
+      if (cur.up.isDown    || wasd.up.isDown)    vy = -1;
+      if (cur.down.isDown  || wasd.down.isDown)  vy =  1;
+    }
 
     if (vx !== 0 && vy !== 0) { vx *= 0.707; vy *= 0.707; }
 
     var moving = vx !== 0 || vy !== 0;
-    var direction = self._myPlayer.data.direction || 'down';
+    var speed  = (moving && running) ? CFG.SPEED * CFG.RUN_MULTIPLIER : CFG.SPEED;
+
+    var direction = ps.direction || 'down';
     if      (vy < 0) direction = 'up';
     else if (vy > 0) direction = 'down';
     else if (vx < 0) direction = 'left';
     else if (vx > 0) direction = 'right';
 
-    var nx = sp.x + vx * dt;
-    var ny = sp.y + vy * dt;
+    var nx = sp.x + vx * speed * dt;
+    var ny = sp.y + vy * speed * dt;
     if (self._canWalk(nx, sp.y)) sp.x = nx;
     if (self._canWalk(sp.x, ny)) sp.y = ny;
 
-    self._myPlayer.data.direction = direction;
-    self._myPlayer.data.moving = moving;
+    ps.direction = direction;
+    ps.moving    = moving;
+    ps.running   = moving && running;
+    ps.working   = working;
 
-    self._animateSprite(sp, moving, direction, time);
+    // Animation state machine
+    var animState;
+    if      (working)         animState = 'work';
+    else if (moving && running) animState = 'run';
+    else if (moving)          animState = 'walk';
+    else                      animState = 'idle';
+
+    self._updateAnim(sp, ps.characterId || 0, animState, direction);
 
     self._myPlayer.nameText.x = sp.x;
-    self._myPlayer.nameText.y = sp.y - 34;
+    self._myPlayer.nameText.y = sp.y - 42;
 
-    var ps = self._myPlayer.data;
-    if (moving) ps.food = Math.max(0, ps.food - CFG.DRAIN.FOOD_WALK * dt);
-    else        ps.food = Math.max(0, ps.food - CFG.DRAIN.FOOD_IDLE  * dt);
+    // Food drain varies by activity
+    if (moving && running) {
+      ps.food = Math.max(0, ps.food - CFG.DRAIN.FOOD_RUN  * dt);
+    } else if (moving) {
+      ps.food = Math.max(0, ps.food - CFG.DRAIN.FOOD_WALK * dt);
+    } else {
+      ps.food = Math.max(0, ps.food - CFG.DRAIN.FOOD_IDLE * dt);
+    }
     if (ps.food <= 0) ps.health = Math.max(0, ps.health - CFG.DRAIN.HEALTH_EMPTY * dt);
     self._updateHUD(ps);
 
     var eJustPressed = Phaser.Input.Keyboard.JustDown(self._eKey);
     JobSystem.update(sp.x, sp.y, eJustPressed, self._spec);
 
+    // Interpolate and animate remote players
     Object.keys(self._remotePlayers).forEach(function(pid) {
       var rp = self._remotePlayers[pid];
-      if (rp.data.targetX !== undefined) {
-        rp.sprite.x += (rp.data.targetX - rp.sprite.x) * 0.18;
-        rp.sprite.y += (rp.data.targetY - rp.sprite.y) * 0.18;
-        rp.nameText.x = rp.sprite.x;
-        rp.nameText.y = rp.sprite.y - 34;
-        self._animateSprite(rp.sprite, rp.data.moving, rp.data.direction, time);
-      }
+      if (rp.data.targetX === undefined) return;
+      rp.sprite.x += (rp.data.targetX - rp.sprite.x) * 0.18;
+      rp.sprite.y += (rp.data.targetY - rp.sprite.y) * 0.18;
+      rp.nameText.x = rp.sprite.x;
+      rp.nameText.y = rp.sprite.y - 42;
+      var rpState;
+      if      (rp.data.working)                    rpState = 'work';
+      else if (rp.data.moving && rp.data.running)  rpState = 'run';
+      else if (rp.data.moving)                     rpState = 'walk';
+      else                                          rpState = 'idle';
+      self._updateAnim(rp.sprite, rp.data.characterId || 0, rpState, rp.data.direction || 'down');
     });
 
     self._moveTimer += delta;
     if (self._moveTimer >= 67) {
       self._moveTimer = 0;
-      SC.emit('player_move', { x: sp.x, y: sp.y, direction: direction, moving: moving });
+      SC.emit('player_move', {
+        x:         sp.x,
+        y:         sp.y,
+        direction: direction,
+        moving:    moving,
+        running:   ps.running,
+        working:   working,
+      });
     }
   },
 
-  // Walk animation: body lean sway + squish-stretch gives natural walking feel.
-  // phase drives both the step bob (abs sin = 2 peaks/cycle) and body lean (sin alternates L/R).
-  _animateSprite: function(sprite, moving, direction, time) {
-    sprite.setOrigin(0.5, 0.5);
-
+  // Drive Phaser's animation system. ignoreIfPlaying=true stops restart on same anim.
+  _updateAnim: function(sprite, charId, state, direction) {
     if      (direction === 'left')  sprite.flipX = true;
     else if (direction === 'right') sprite.flipX = false;
-
-    var baseW = 36;
-    var baseH = 52;
-    var t = time % 628318;
-
-    if (moving) {
-      // ~1.9 steps/sec: sin oscillates one full L+R cycle per ~524ms
-      var phase = t * 0.012;
-      var bob   = Math.abs(Math.sin(phase)); // 0 at footfall, 1 at mid-stride
-
-      // Body lean: alternates ±4° every step (key visual cue of real walking)
-      sprite.angle = Math.sin(phase) * 4;
-
-      // Squish-stretch: taller+narrower at mid-stride, normal at footfall
-      sprite.setDisplaySize(
-        baseW * (1.0 - bob * 0.04),
-        baseH * (1.0 + bob * 0.08)
-      );
-    } else {
-      sprite.angle = 0;
-      var breathe = Math.sin(t * 0.0018);
-      sprite.setDisplaySize(
-        baseW * (1.0 - breathe * 0.010),
-        baseH * (1.0 + breathe * 0.016)
-      );
-    }
+    sprite.anims.play('char_' + charId + '_' + state, true);
   },
 
   _canWalk: function(x, y) {
@@ -332,12 +345,11 @@ var GameScene = new Phaser.Class({
 
   _spawnCars: function() {
     var self = this;
-    var W = CFG.WORLD_W * CFG.TILE;
     [{x:200,y:272,vx:60,ci:0},{x:1200,y:288,vx:-50,ci:1},{x:100,y:800,vx:70,ci:2},
      {x:700,y:816,vx:-45,ci:3},{x:400,y:1312,vx:55,ci:4}].forEach(function(def) {
       var sprite = self.add.image(def.x, def.y, 'car_'+def.ci).setDepth(7);
       if (def.vx < 0) sprite.flipX = true;
-      self._cars.push({ sprite: sprite, vx: def.vx, maxX: W });
+      self._cars.push({ sprite: sprite, vx: def.vx });
     });
   },
 

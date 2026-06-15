@@ -6,75 +6,77 @@ var PreloadScene = new Phaser.Class({
   },
 
   preload: function() {
-    // All assets generated programmatically — nothing to fetch
-    var bar = this.add.rectangle(400, 300, 400, 12, 0xffd700);
-    var fill = this.add.rectangle(200, 300, 0, 10, 0xffffff);
-    this.load.on('progress', function(v) { fill.width = 400 * v; fill.x = 200 + fill.width/2; });
+    var self = this;
+    var bar  = self.add.rectangle(400, 300, 400, 12, 0xffd700);
+    var fill = self.add.rectangle(200, 300, 0, 10, 0xffffff);
+    self.load.on('progress', function(v) { fill.width = 400 * v; fill.x = 200 + fill.width / 2; });
 
-    // Load characters master sprite sheet
-    this.load.image('characters_sheet', 'assets/characters.png');
+    // Load each character strip as a plain image; chroma-key happens in create()
+    CFG.CHAR_FILES.forEach(function(name, i) {
+      self.load.image('charraw_' + i, 'assets/chars/' + name + '.png');
+    });
   },
 
   create: function() {
     var self = this;
 
-    // Generate city and store canvas as Phaser texture
     var result = generateCity();
     self.textures.addCanvas('city', result.canvas);
     self.registry.set('cityMap', result.map);
 
-    // Slice and chroma-key the character sprite sheet.
-    // Auto-divide evenly into 5 columns × 3 rows — works regardless of exact image size.
-    var img = self.textures.get('characters_sheet').getSourceImage();
-    var imgW = img.naturalWidth  || img.width;
-    var imgH = img.naturalHeight || img.height;
-    var colW = Math.floor(imgW / 5);
-    var rowH = Math.floor(imgH / 3);
-    var chromaTol = CFG.SHEET.chromaTol;
+    // --- Character spritesheets ---
+    // Each file: 896x96px horizontal strip, 14 frames of 64x96px
+    //   [0-1]  idle   3 fps
+    //   [2-5]  walk   8 fps
+    //   [6-9]  run   12 fps
+    //  [10-13] work   6 fps
+    // Background: solid magenta #FF00FF (chroma-keyed out below)
 
-    CFG.CHARS.forEach(function(ch, i) {
-      var row = Math.floor(i / 5);
-      var col = i % 5;
-      var sx = col * colW;
-      var sy = row * rowH;
+    CFG.CHAR_FILES.forEach(function(name, i) {
+      var raw = self.textures.get('charraw_' + i).getSourceImage();
+      var w   = raw.naturalWidth  || raw.width;
+      var h   = raw.naturalHeight || raw.height;
 
-      // 1. Full character canvas (used in-game)
+      // Draw to canvas and remove magenta background
       var canvas = document.createElement('canvas');
-      canvas.width  = colW;
-      canvas.height = rowH;
+      canvas.width  = w;
+      canvas.height = h;
       var ctx = canvas.getContext('2d');
-      ctx.drawImage(img, sx, sy, colW, rowH, 0, 0, colW, rowH);
+      ctx.drawImage(raw, 0, 0);
 
-      // Chroma-key: remove background gray (#b0b5b8, tolerance chromaTol)
-      var imgData = ctx.getImageData(0, 0, colW, rowH);
-      var pixels  = imgData.data;
-      for (var j = 0; j < pixels.length; j += 4) {
-        var dr = pixels[j]   - 176;
-        var dg = pixels[j+1] - 181;
-        var db = pixels[j+2] - 184;
-        if (Math.sqrt(dr*dr + dg*dg + db*db) < chromaTol) {
-          pixels[j+3] = 0;
+      var imgData = ctx.getImageData(0, 0, w, h);
+      var px = imgData.data;
+      for (var j = 0; j < px.length; j += 4) {
+        // Magenta: R high, G low, B high
+        if (px[j] > 180 && px[j+1] < 80 && px[j+2] > 180) {
+          px[j+3] = 0;
         }
       }
       ctx.putImageData(imgData, 0, 0);
-      self.textures.addCanvas('player_' + i, canvas);
 
-      // 2. Avatar headshot (used in character select & lobby)
-      // Crop upper-center ~50% of cell height where the face/head lives
+      // Register as Phaser spritesheet
+      self.textures.addSpriteSheet('char_' + i, canvas, { frameWidth: 64, frameHeight: 96 });
+
+      // Register all four animations
+      var k = 'char_' + i;
+      self.anims.create({ key: k + '_idle', frames: self.anims.generateFrameNumbers(k, { start: 0,  end: 1  }), frameRate: 3,  repeat: -1 });
+      self.anims.create({ key: k + '_walk', frames: self.anims.generateFrameNumbers(k, { start: 2,  end: 5  }), frameRate: 8,  repeat: -1 });
+      self.anims.create({ key: k + '_run',  frames: self.anims.generateFrameNumbers(k, { start: 6,  end: 9  }), frameRate: 12, repeat: -1 });
+      self.anims.create({ key: k + '_work', frames: self.anims.generateFrameNumbers(k, { start: 10, end: 13 }), frameRate: 6,  repeat: -1 });
+
+      // Avatar headshot from frame 0 (idle pose) for character select / lobby
       var avCanvas = document.createElement('canvas');
       avCanvas.width  = 60;
       avCanvas.height = 60;
-      var avCtx  = avCanvas.getContext('2d');
-      var cropX  = Math.floor(colW * 0.10);
-      var cropY  = Math.floor(rowH * 0.02);
-      var cropW  = Math.floor(colW * 0.80);
-      var cropH  = Math.floor(rowH * 0.52);
-      avCtx.drawImage(canvas, cropX, cropY, cropW, cropH, 0, 0, 60, 60);
+      var avCtx = avCanvas.getContext('2d');
+      // Frame 0 occupies x=0..63, y=0..95 on the strip.
+      // Crop centre-upper area (face + upper torso)
+      avCtx.drawImage(canvas, 4, 0, 56, 64, 0, 0, 60, 60);
       self.textures.addCanvas('avatar_' + i, avCanvas);
     });
 
     // NPC pedestrian texture
-    var ng = self.make.graphics({ x:0, y:0, add:false });
+    var ng = self.make.graphics({ x: 0, y: 0, add: false });
     ng.fillStyle(0x888888, 1);
     ng.fillCircle(12, 12, 10);
     ng.lineStyle(2, 0x555555, 1);
@@ -82,10 +84,9 @@ var PreloadScene = new Phaser.Class({
     ng.generateTexture('npc', 24, 24);
     ng.destroy();
 
-    // Car texture (simple rectangle)
-    var cg = self.make.graphics({ x:0, y:0, add:false });
-    var carColors = [0xe74c3c, 0x3498db, 0x2ecc71, 0xf1c40f, 0x9b59b6];
-    carColors.forEach(function(col, ci) {
+    // Car textures
+    var cg = self.make.graphics({ x: 0, y: 0, add: false });
+    [0xe74c3c, 0x3498db, 0x2ecc71, 0xf1c40f, 0x9b59b6].forEach(function(col, ci) {
       cg.fillStyle(col, 1);
       cg.fillRoundedRect(0, 0, 40, 22, 4);
       cg.fillStyle(0x34495e, 1);
@@ -99,7 +100,3 @@ var PreloadScene = new Phaser.Class({
     self.scene.start('GameScene');
   },
 });
-
-function hexToNum(hex) {
-  return parseInt(hex.replace('#',''), 16);
-}

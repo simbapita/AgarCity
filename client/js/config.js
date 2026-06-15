@@ -3,36 +3,39 @@ var CFG = {
   WORLD_W: 70,
   WORLD_H: 70,
   SPEED: 160,
+  RUN_MULTIPLIER: 1.6,
 
   DRAIN: {
-    FOOD_WALK: 0.12,
-    FOOD_IDLE: 0.03,
+    FOOD_RUN:     0.22,
+    FOOD_WALK:    0.12,
+    FOOD_IDLE:    0.03,
     HEALTH_EMPTY: 0.07,
   },
 
-  CHARS: [
-    { name: 'Knight',     body: '#a6b2c1', outline: '#7f8c8d' },
-    { name: 'Barbarian',  body: '#d35400', outline: '#a04000' },
-    { name: 'Dwarf',      body: '#8e44ad', outline: '#6c3483' },
-    { name: 'Paladin',    body: '#f1c40f', outline: '#f39c12' },
-    { name: 'Commander',  body: '#2c3e50', outline: '#1a252f' },
-    { name: 'Wizard',     body: '#2980b9', outline: '#1f618d' },
-    { name: 'Ranger',     body: '#27ae60', outline: '#1e8449' },
-    { name: 'Assassin',   body: '#34495e', outline: '#2c3e50' },
-    { name: 'Cleric',     body: '#c0392b', outline: '#922b21' },
-    { name: 'Priestess',  body: '#ecf0f1', outline: '#bdc3c7' },
-    { name: 'Soldier',    body: '#7f8c8d', outline: '#5d6d7e' },
-    { name: 'Blacksmith', body: '#e67e22', outline: '#d35400' },
-    { name: 'Farmer',     body: '#f39c12', outline: '#b7950b' },
-    { name: 'Merchant',   body: '#16a085', outline: '#117a65' },
-    { name: 'Maid',       body: '#1abc9c', outline: '#16a085' },
+  // Filename order must match CHARS index (0-14)
+  CHAR_FILES: [
+    'knight', 'barbarian', 'dwarf', 'paladin', 'commander',
+    'wizard', 'ranger', 'assassin', 'cleric', 'priestess',
+    'soldier', 'blacksmith', 'farmer', 'merchant', 'maid'
   ],
 
-  // Sprite sheet metadata — chromaTol lowered to 30 to preserve light/silver armor
-  SHEET: {
-    chromaColor: '#b0b5b8',
-    chromaTol: 30
-  },
+  CHARS: [
+    { name: 'Knight'     },
+    { name: 'Barbarian'  },
+    { name: 'Dwarf'      },
+    { name: 'Paladin'    },
+    { name: 'Commander'  },
+    { name: 'Wizard'     },
+    { name: 'Ranger'     },
+    { name: 'Assassin'   },
+    { name: 'Cleric'     },
+    { name: 'Priestess'  },
+    { name: 'Soldier'    },
+    { name: 'Blacksmith' },
+    { name: 'Farmer'     },
+    { name: 'Merchant'   },
+    { name: 'Maid'       },
+  ],
 
   SPECS: [
     { id: 'TECH',         name: 'Technology',   icon: '💻', color: '#3498db' },
@@ -43,7 +46,6 @@ var CFG = {
     { id: 'ARTS',         name: 'Arts',          icon: '🎨', color: '#9b59b6' },
   ],
 
-  // Tile IDs
   T: {
     ROAD: 0, SIDEWALK: 1, GRASS: 2, BUILDING: 3,
     TREE: 4, PARK_PATH: 5,
@@ -54,22 +56,21 @@ var CFG = {
 
   WALKABLE: new Set([0, 1, 2, 5]),
 
-  // Colors for drawing tiles
   TILE_COLORS: {
-    0:  '#3a3a4a',  // road
-    1:  '#6e6e7e',  // sidewalk
-    2:  '#2d5a27',  // grass
-    3:  '#1a1a2e',  // building (dark)
-    4:  '#1a3d1a',  // tree (darker green)
-    5:  '#4a7a44',  // park path
-    6:  '#1a237e',  // tech building
-    7:  '#b71c1c',  // medical building
-    8:  '#e65100',  // food building
-    9:  '#4e342e',  // trades building
-    10: '#1b5e20',  // business building
-    11: '#4a148c',  // arts building
-    12: '#5d4037',  // house
-    13: '#00695c',  // shop
+    0:  '#3a3a4a',
+    1:  '#6e6e7e',
+    2:  '#2d5a27',
+    3:  '#1a1a2e',
+    4:  '#1a3d1a',
+    5:  '#4a7a44',
+    6:  '#1a237e',
+    7:  '#b71c1c',
+    8:  '#e65100',
+    9:  '#4e342e',
+    10: '#1b5e20',
+    11: '#4a148c',
+    12: '#5d4037',
+    13: '#00695c',
   },
 
   JOB_ZONES: [
