@@ -20,39 +20,39 @@ var CFG = {
   HEALTH_REGEN: 0.6,
   FOOD_REGEN_THRESHOLD: 50,
 
-  // Filename order must match CHARS index (0-14)
+  // Filename order must match CHARS index (0-14); no extension
   CHAR_FILES: [
-    'knight', 'barbarian', 'dwarf', 'paladin', 'commander',
-    'wizard', 'ranger', 'assassin', 'cleric', 'priestess',
+    'knight', 'barbarian', 'dwarf', 'whiteknight', 'shadow knight',
+    'wizard', 'female archer', 'assassin', 'cleric', 'priestess',
     'soldier', 'blacksmith', 'farmer', 'merchant', 'maid'
   ],
 
   // accent = UI border/tint color for avatar cards (purely cosmetic)
   CHARS: [
-    { name: 'Knight',     accent: '#a6b2c1' },
-    { name: 'Barbarian',  accent: '#d35400' },
-    { name: 'Dwarf',      accent: '#8e6f3a' },
-    { name: 'Paladin',    accent: '#f1c40f' },
-    { name: 'Commander',  accent: '#7f8c9b' },
-    { name: 'Wizard',     accent: '#2980b9' },
-    { name: 'Ranger',     accent: '#27ae60' },
-    { name: 'Assassin',   accent: '#566573' },
-    { name: 'Cleric',     accent: '#c0392b' },
-    { name: 'Priestess',  accent: '#ecf0f1' },
-    { name: 'Soldier',    accent: '#95a5a6' },
-    { name: 'Blacksmith', accent: '#e67e22' },
-    { name: 'Farmer',     accent: '#3498db' },
-    { name: 'Merchant',   accent: '#16a085' },
-    { name: 'Maid',       accent: '#bdc3c7' },
+    { name: 'Knight',        accent: '#a6b2c1' },
+    { name: 'Barbarian',     accent: '#d35400' },
+    { name: 'Dwarf',         accent: '#8e6f3a' },
+    { name: 'White Knight',  accent: '#f1c40f' },
+    { name: 'Shadow Knight', accent: '#7f8c9b' },
+    { name: 'Wizard',        accent: '#2980b9' },
+    { name: 'Female Archer', accent: '#27ae60' },
+    { name: 'Assassin',      accent: '#566573' },
+    { name: 'Cleric',        accent: '#c0392b' },
+    { name: 'Priestess',     accent: '#ecf0f1' },
+    { name: 'Soldier',       accent: '#95a5a6' },
+    { name: 'Blacksmith',    accent: '#e67e22' },
+    { name: 'Farmer',        accent: '#3498db' },
+    { name: 'Merchant',      accent: '#16a085' },
+    { name: 'Maid',          accent: '#bdc3c7' },
   ],
 
   SPECS: [
-    { id: 'TECH',         name: 'Technology',   icon: '💻', color: '#3498db' },
-    { id: 'MEDICAL',      name: 'Medical',       icon: '🏥', color: '#e74c3c' },
-    { id: 'FOOD_SERVICE', name: 'Food Service',  icon: '🍕', color: '#f39c12' },
-    { id: 'TRADES',       name: 'Trades',        icon: '🔨', color: '#95a5a6' },
-    { id: 'BUSINESS',     name: 'Business',      icon: '💼', color: '#2ecc71' },
-    { id: 'ARTS',         name: 'Arts',          icon: '🎨', color: '#9b59b6' },
+    { id: 'TECH',         name: 'Technology',   icon: '\u{1f4bb}', color: '#3498db' },
+    { id: 'MEDICAL',      name: 'Medical',       icon: '\u{1f3e5}', color: '#e74c3c' },
+    { id: 'FOOD_SERVICE', name: 'Food Service',  icon: '\u{1f355}', color: '#f39c12' },
+    { id: 'TRADES',       name: 'Trades',        icon: '\u{1f528}', color: '#95a5a6' },
+    { id: 'BUSINESS',     name: 'Business',      icon: '\u{1f4bc}', color: '#2ecc71' },
+    { id: 'ARTS',         name: 'Arts',          icon: '\u{1f3a8}', color: '#9b59b6' },
   ],
 
   T: {

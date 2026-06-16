@@ -33,24 +33,30 @@ var PreloadScene = new Phaser.Class({
     self.registry.set('cityMap', result.map);
 
     // --- Character spritesheets ---
-    // Each file: 896x96px horizontal strip, 14 frames of 64x96px
-    //   [0-1]  idle   3 fps
-    //   [2-5]  walk   8 fps
-    //   [6-9]  run   12 fps
-    //  [10-13] work   6 fps
+    // Two supported layouts (auto-detected from image dimensions):
+    //
+    //   8-col x 3-row grid (h > w/4):  e.g. 2816x1536 -> 352x512 per frame (24 frames)
+    //     row 0 (frames  0- 7): idle / walk
+    //     row 1 (frames  8-15): run / active
+    //     row 2 (frames 16-23): work / attack
+    //
+    //   14-frame horizontal strip (h <= w/4): legacy fallback
+    //     [0-1] idle, [2-5] walk, [6-9] run, [10-13] work
+    //
     // Background: solid magenta #FF00FF (chroma-keyed out below)
-
-    var FRAMES = 14; // idle(2) + walk(4) + run(4) + work(4)
 
     CFG.CHAR_FILES.forEach(function(name, i) {
       var raw = self._failed['charraw_' + i] ? null : self.textures.get('charraw_' + i).getSourceImage();
       var w   = raw ? (raw.naturalWidth  || raw.width)  : 0;
       var h   = raw ? (raw.naturalHeight || raw.height) : 0;
 
+      // Detect layout from aspect ratio: tall image = 8x3 grid, wide = 14-frame strip.
+      var COLS = (w > 0 && h > w / 4) ? 8 : 14;
+      var ROWS = (COLS === 8) ? 3 : 1;
+
       var canvas, frameW, frameH;
 
-      // Need a strip at least FRAMES px wide to slice; otherwise use a placeholder.
-      if (raw && w >= FRAMES && h > 0) {
+      if (raw && w > 0 && h > 0) {
         canvas = document.createElement('canvas');
         canvas.width  = w;
         canvas.height = h;
@@ -65,12 +71,11 @@ var PreloadScene = new Phaser.Class({
         }
         ctx.putImageData(imgData, 0, 0);
 
-        // Frame size derived from the actual image so non-896x96 strips still work.
-        frameW = Math.floor(w / FRAMES);
-        frameH = h;
+        frameW = Math.floor(w / COLS);
+        frameH = Math.floor(h / ROWS);
       } else {
         // Fallback placeholder so the game still runs without art.
-        var ph = self._makePlaceholderStrip(i, FRAMES);
+        var ph = self._makePlaceholderStrip(i, COLS, ROWS);
         canvas = ph.canvas;
         frameW = ph.frameW;
         frameH = ph.frameH;
@@ -79,12 +84,19 @@ var PreloadScene = new Phaser.Class({
       // Register as Phaser spritesheet
       self.textures.addSpriteSheet('char_' + i, canvas, { frameWidth: frameW, frameHeight: frameH });
 
-      // Register all four animations
+      // Register all four animations; frame ranges depend on detected layout
       var k = 'char_' + i;
-      self.anims.create({ key: k + '_idle', frames: self.anims.generateFrameNumbers(k, { start: 0,  end: 1  }), frameRate: 3,  repeat: -1 });
-      self.anims.create({ key: k + '_walk', frames: self.anims.generateFrameNumbers(k, { start: 2,  end: 5  }), frameRate: 8,  repeat: -1 });
-      self.anims.create({ key: k + '_run',  frames: self.anims.generateFrameNumbers(k, { start: 6,  end: 9  }), frameRate: 12, repeat: -1 });
-      self.anims.create({ key: k + '_work', frames: self.anims.generateFrameNumbers(k, { start: 10, end: 13 }), frameRate: 6,  repeat: -1 });
+      if (COLS === 8) {
+        self.anims.create({ key: k + '_idle', frames: self.anims.generateFrameNumbers(k, { start: 0,  end: 1  }), frameRate: 3,  repeat: -1 });
+        self.anims.create({ key: k + '_walk', frames: self.anims.generateFrameNumbers(k, { start: 0,  end: 7  }), frameRate: 8,  repeat: -1 });
+        self.anims.create({ key: k + '_run',  frames: self.anims.generateFrameNumbers(k, { start: 8,  end: 15 }), frameRate: 12, repeat: -1 });
+        self.anims.create({ key: k + '_work', frames: self.anims.generateFrameNumbers(k, { start: 16, end: 23 }), frameRate: 6,  repeat: -1 });
+      } else {
+        self.anims.create({ key: k + '_idle', frames: self.anims.generateFrameNumbers(k, { start: 0,  end: 1  }), frameRate: 3,  repeat: -1 });
+        self.anims.create({ key: k + '_walk', frames: self.anims.generateFrameNumbers(k, { start: 2,  end: 5  }), frameRate: 8,  repeat: -1 });
+        self.anims.create({ key: k + '_run',  frames: self.anims.generateFrameNumbers(k, { start: 6,  end: 9  }), frameRate: 12, repeat: -1 });
+        self.anims.create({ key: k + '_work', frames: self.anims.generateFrameNumbers(k, { start: 10, end: 13 }), frameRate: 6,  repeat: -1 });
+      }
 
       // Avatar headshot from frame 0 (idle pose) for character select / lobby
       var avCanvas = document.createElement('canvas');
@@ -123,36 +135,39 @@ var PreloadScene = new Phaser.Class({
     self.scene.start('GameScene');
   },
 
-  // Build a simple animated placeholder strip (14 frames) used when a
-  // character's art file is missing, so the game remains fully playable.
-  _makePlaceholderStrip: function(charIdx, frames) {
+  // Build a simple animated placeholder grid used when a character art file
+  // is missing, so the game remains fully playable without assets.
+  _makePlaceholderStrip: function(charIdx, cols, rows) {
     var frameW = 64, frameH = 96;
     var accent = (CFG.CHARS[charIdx] && CFG.CHARS[charIdx].accent) || '#ffd700';
     var cv = document.createElement('canvas');
-    cv.width  = frameW * frames;
-    cv.height = frameH;
+    cv.width  = frameW * cols;
+    cv.height = frameH * rows;
     var c = cv.getContext('2d');
+    var totalFrames = cols * rows;
 
-    for (var f = 0; f < frames; f++) {
-      var ox = f * frameW;
-      // Animate a little vertical bob + leg swing per frame
+    for (var f = 0; f < totalFrames; f++) {
+      var col = f % cols;
+      var row = Math.floor(f / cols);
+      var ox = col * frameW;
+      var oy = row * frameH;
       var bob = Math.abs(Math.sin(f * 0.9)) * 4;
       var cx = ox + frameW / 2;
       // body
       c.fillStyle = accent;
-      c.fillRect(cx - 9, 34 + bob, 18, 30);
+      c.fillRect(cx - 9, oy + 34 + bob, 18, 30);
       // head
       c.beginPath();
-      c.arc(cx, 26 + bob, 11, 0, Math.PI * 2);
+      c.arc(cx, oy + 26 + bob, 11, 0, Math.PI * 2);
       c.fill();
       // legs (swing on even/odd frames)
       var swing = (f % 2 === 0) ? 4 : -4;
-      c.fillRect(cx - 8, 64 + bob, 6, 20 + swing);
-      c.fillRect(cx + 2, 64 + bob, 6, 20 - swing);
-      // outline accent
+      c.fillRect(cx - 8, oy + 64 + bob, 6, 20 + swing);
+      c.fillRect(cx + 2, oy + 64 + bob, 6, 20 - swing);
+      // outline
       c.strokeStyle = 'rgba(0,0,0,0.35)';
       c.lineWidth = 2;
-      c.strokeRect(cx - 9, 34 + bob, 18, 30);
+      c.strokeRect(cx - 9, oy + 34 + bob, 18, 30);
     }
     return { canvas: cv, frameW: frameW, frameH: frameH };
   },
