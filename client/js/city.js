@@ -155,79 +155,104 @@ function mulberry32(seed) {
   };
 }
 
+// Deterministic per-tile pseudo-random so texture speckle is stable each redraw.
+function tileRand(tx, ty, salt) {
+  var s = Math.sin((tx * 127.1 + ty * 311.7 + salt * 53.3)) * 43758.5453;
+  return s - Math.floor(s);
+}
+
 function drawTile(ctx, tx, ty, type, TILE) {
   var px = tx * TILE, py = ty * TILE;
-  var colors = CFG.TILE_COLORS;
-  var color = colors[type] || '#000';
+  var T = CFG.T;
 
-  ctx.fillStyle = color;
-  ctx.fillRect(px, py, TILE, TILE);
-
-  // Tile-specific details
-  if (type === CFG.T.ROAD) {
-    // road markings
-    ctx.fillStyle = '#555566';
-    ctx.fillRect(px, py, TILE, TILE);
-    // lane dashes (only on horizontal roads — simplified: just a subtle line)
-    ctx.fillStyle = '#4a4a5a';
-    ctx.fillRect(px+1, py+1, TILE-2, TILE-2);
-
-  } else if (type === CFG.T.SIDEWALK) {
-    ctx.fillStyle = '#6e6e7e';
-    ctx.fillRect(px, py, TILE, TILE);
-    ctx.fillStyle = '#5a5a6a';
-    ctx.fillRect(px+1, py+1, TILE-2, TILE-2);
-
-  } else if (type === CFG.T.TREE) {
-    // grass bg
-    ctx.fillStyle = '#2d5a27';
-    ctx.fillRect(px, py, TILE, TILE);
-    // trunk
-    ctx.fillStyle = '#5d4037';
-    ctx.fillRect(px+14, py+18, 4, 10);
-    // canopy
-    ctx.fillStyle = '#1a5e1a';
-    ctx.beginPath();
-    ctx.arc(px+TILE/2, py+12, 10, 0, Math.PI*2);
-    ctx.fill();
-    ctx.fillStyle = '#228b22';
-    ctx.beginPath();
-    ctx.arc(px+TILE/2, py+10, 8, 0, Math.PI*2);
-    ctx.fill();
-
-  } else if (type >= 3) {
-    // building-like tile: add windows
+  // Scatter n speckles of a colour across the tile, deterministically.
+  function speck(color, n, salt, sz) {
     ctx.fillStyle = color;
-    ctx.fillRect(px, py, TILE, TILE);
-    // darker border
-    ctx.fillStyle = 'rgba(0,0,0,0.3)';
-    ctx.fillRect(px, py, TILE, 2);
-    ctx.fillRect(px, py, 2, TILE);
-    // windows
-    ctx.fillStyle = 'rgba(255,255,180,0.5)';
-    var winSize = 4;
-    var wins = [[4,4],[4,16],[18,4],[18,16]];
-    for (var i = 0; i < wins.length; i++) {
-      ctx.fillRect(px+wins[i][0], py+wins[i][1], winSize, winSize);
+    for (var i = 0; i < n; i++) {
+      var rx = Math.floor(tileRand(tx, ty, salt + i) * TILE);
+      var ry = Math.floor(tileRand(ty, tx, salt + i * 1.7) * TILE);
+      ctx.fillRect(px + rx, py + ry, sz || 2, sz || 2);
     }
-
-  } else if (type === CFG.T.GRASS) {
-    ctx.fillStyle = '#2d5a27';
-    ctx.fillRect(px, py, TILE, TILE);
-    // texture dots
-    ctx.fillStyle = '#275222';
-    ctx.fillRect(px+5, py+8, 2, 2);
-    ctx.fillRect(px+20, py+4, 2, 2);
-    ctx.fillRect(px+12, py+20, 2, 2);
-
-  } else if (type === CFG.T.PARK_PATH) {
-    ctx.fillStyle = '#4a7a44';
-    ctx.fillRect(px, py, TILE, TILE);
-    ctx.fillStyle = '#3d6e37';
-    ctx.fillRect(px+1, py+1, TILE-2, TILE-2);
   }
 
-  // Grid line (subtle)
-  ctx.strokeStyle = 'rgba(0,0,0,0.1)';
-  ctx.strokeRect(px, py, TILE, TILE);
+  if (type === T.ROAD) {
+    // Cobblestone-style dark path
+    ctx.fillStyle = '#3a3a44';
+    ctx.fillRect(px, py, TILE, TILE);
+    speck('#33333d', 7, 1, 3);
+    speck('#45454f', 5, 9, 2);
+
+  } else if (type === T.SIDEWALK) {
+    // Stone slabs (lighter, with seams)
+    ctx.fillStyle = '#776f63';
+    ctx.fillRect(px, py, TILE, TILE);
+    ctx.fillStyle = '#5e574c';
+    ctx.fillRect(px, py + 15, TILE, 2);
+    ctx.fillRect(px + 15, py, 2, TILE);
+    speck('#857c6e', 5, 4, 2);
+
+  } else if (type === T.TREE) {
+    // grass bg
+    ctx.fillStyle = '#3a7a2c';
+    ctx.fillRect(px, py, TILE, TILE);
+    speck('#2f6a24', 6, 2, 2);
+    // trunk
+    ctx.fillStyle = '#6b4525';
+    ctx.fillRect(px + 14, py + 18, 4, 11);
+    ctx.fillStyle = '#7d5530';
+    ctx.fillRect(px + 14, py + 18, 1, 11);
+    // layered leafy canopy
+    ctx.fillStyle = '#1f6a22';
+    ctx.beginPath(); ctx.arc(px + TILE / 2, py + 13, 11, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#2e8b2e';
+    ctx.beginPath(); ctx.arc(px + TILE / 2 - 2, py + 11, 8, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#46a83f';
+    ctx.beginPath(); ctx.arc(px + TILE / 2 - 3, py + 9, 4, 0, Math.PI * 2); ctx.fill();
+
+  } else if (type === T.GRASS) {
+    ctx.fillStyle = '#3a7a2c';
+    ctx.fillRect(px, py, TILE, TILE);
+    speck('#2f6a24', 8, 3, 2);
+    // grass blades
+    ctx.fillStyle = '#4fa040';
+    for (var b = 0; b < 4; b++) {
+      var bx = px + 3 + Math.floor(tileRand(tx, ty, 20 + b) * (TILE - 6));
+      var by = py + 6 + Math.floor(tileRand(ty, tx, 20 + b) * (TILE - 10));
+      ctx.fillRect(bx, by, 1, 4);
+      ctx.fillRect(bx + 2, by + 1, 1, 3);
+    }
+
+  } else if (type === T.PARK_PATH) {
+    // Warm dirt/gravel path
+    ctx.fillStyle = '#9c7a4a';
+    ctx.fillRect(px, py, TILE, TILE);
+    speck('#86683d', 7, 5, 2);
+    speck('#b08e58', 4, 11, 2);
+
+  } else if (type >= 3) {
+    // Building-like tile: warm stone-brick walls with glowing windows
+    var color = CFG.TILE_COLORS[type] || '#3a2a3a';
+    ctx.fillStyle = color;
+    ctx.fillRect(px, py, TILE, TILE);
+    // brick seams
+    ctx.fillStyle = 'rgba(0,0,0,0.28)';
+    ctx.fillRect(px, py + 10, TILE, 1);
+    ctx.fillRect(px, py + 21, TILE, 1);
+    ctx.fillRect(px + 10, py, 1, 11);
+    ctx.fillRect(px + 21, py + 11, 1, 10);
+    // top-left highlight bevel
+    ctx.fillStyle = 'rgba(255,220,160,0.10)';
+    ctx.fillRect(px, py, TILE, 2);
+    ctx.fillRect(px, py, 2, TILE);
+    // warm lit windows
+    ctx.fillStyle = 'rgba(255,214,140,0.65)';
+    var wins = [[5, 4], [5, 16], [18, 4], [18, 16]];
+    for (var i = 0; i < wins.length; i++) {
+      ctx.fillRect(px + wins[i][0], py + wins[i][1], 5, 5);
+    }
+  }
+
+  // Subtle grid seam
+  ctx.strokeStyle = 'rgba(0,0,0,0.12)';
+  ctx.strokeRect(px + 0.5, py + 0.5, TILE - 1, TILE - 1);
 }
