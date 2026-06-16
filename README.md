@@ -1,69 +1,78 @@
-# TerraCity
+# AgarCity
 
-A Terraria-style multiplayer 2D side-scroller built with Phaser 3, Socket.io, and Node.js.
-Dig, build, and survive in a procedurally generated world with day/night, lighting, weather, and friends.
+A multiplayer urban life browser game built with Phaser 3, Socket.io, and Node.js —
+with a **Terraria-style look and feel**: a living day/night cycle, torch-lit nights,
+weather, and a hand-crafted wooden UI.
 
 ## Features
-- **Procedural side-scrolling world** — rolling surface, dirt & stone layers, winding caves, ore/gem veins, trees, plus desert & snow biomes, all generated deterministically from a seed
-- **Dig & build** — left-click to mine any block (tools, hardness & drops), right-click to place from your hotbar
-- **Wooden hotbar inventory** — collect what you mine; 10 slots, select with 1-0 keys or the mouse wheel
-- **Gravity platforming** — run, jump (with coyote-time + jump-buffer), and variable jump height
-- **Day/night cycle** — a smooth sky that shifts through dawn → day → dusk → night, with an arcing sun, moon, and stars
-- **Dynamic lighting** — the world is dark underground and at night; skylight, torches, and the player cast soft light that spills into caves
-- **Particles & weather** — mining debris, footstep/jump/land puffs, drifting ambient dust, and rolling rain storms
-- **Night slimes** — bouncing enemies spawn after dark; stomp them or run — they hit back
-- **Solo or multiplayer** — play instantly solo, or share a 6-character world code; everyone explores the *same* world with synced block edits and live positions
-- **In-game chat** — talk to other players in your world (press Enter)
-- **Save codes** — your name & character are restored with a 12-character save code
+- **Solo or multiplayer** — play instantly solo, or create/join a lobby with a 6-character code
+- **Day/night cycle** — the whole city smoothly shifts through dawn → day → dusk → night
+- **Atmospheric lighting** — at night the streets darken and a warm torch glow follows you, while lit buildings and job zones stay aglow
+- **Particles & weather** — drifting ambient motes, footstep dust, and rolling rain storms
+- **Wooden / parchment UI** — carved-plank panels, parchment inputs, and a wooden HUD with a live day/night indicator
+- **Animated pixel characters** — 15 characters, each with idle / walk / run / work animations
+- **Character customization** — 15 character skins and 6 career specializations
+- **Job system** — 3-tier career progression (e.g. Dishwasher → Server → Head Chef)
+- **Token economy** — earn tokens by working, spend them on food
+- **Health & food survival** — food drains as you move; stay fed to regenerate health
+- **Live minimap** — overview of the city, job zones, food stores, and players (toggle with M)
+- **In-game chat** — talk to other players in your lobby (press Enter)
+- **Scoreboard** — hold Tab to see the token/XP ranking for everyone in your game
+- **Persistent progress** — save code restores your tokens, XP, and job tier
+- **Procedural city map** — zone-based layout with parks, roads, shops, and districts, drawn in earthy pixel art
 
 ## Getting Started
+
 ```bash
 npm install
 npm start
 ```
-Then open `http://localhost:3000`.
+
+Then open `http://localhost:3000` in your browser.
 
 ## How to Play
-- **A / D** or **← / →** — move
-- **W / Space / ↑** — jump
-- **Shift** — run
-- **Left-click** (hold) — mine the highlighted block
-- **Right-click** — place the selected block
-- **1-0** or **mouse wheel** — select a hotbar slot
-- **Enter** — chat
-- Mine dirt, wood and stone to gather blocks; dig down for copper, iron, gold and gems
-- Place **torches** to light up caves — it gets *dark* down there and at night
-- Keep an eye on your **hearts**: slimes and long falls hurt; health slowly regenerates
+- **WASD / Arrows** — move around the city
+- **Shift** — run (faster, but drains food quicker)
+- **E** — interact with job zones and food stores
+- **Enter** — open chat
+- **Tab** (hold) — show the scoreboard
+- **M** — toggle the minimap
+- **Esc** — cancel an in-progress job
+- Walk into a colored zone circle matching your specialization and press E to work
+- Earn XP to unlock higher-tier jobs with better pay
+- Keep your food bar up — buy food at orange store circles before your health drops
 
 ## Tech Stack
-- **Client:** Phaser 3 (arcade physics + tilemaps), Socket.io client, vanilla JS
+- **Client:** Phaser 3, Socket.io client, vanilla JS
 - **Server:** Node.js, Express, Socket.io, better-sqlite3
-- **World sync:** the server stores only the seed + block edits; every client generates the identical world locally
+- **Database:** SQLite (auto-created on first run)
 
 ## Project Structure
 ```
-client/
+client/          # Frontend (served as static files)
   index.html
+  assets/
+    chars/         # 15 character sprite strips (knight.png, …) — 14 frames each
   js/
-    config.js          # Tiles, physics, world constants (shared contract)
-    world.js           # Procedural world generator (seed -> terrain)
-    socket-client.js   # Socket.io wrapper
-    ui.js              # Start / lobby / character-select screens + HUD (hearts)
-    main.js            # Phaser bootstrap (gravity on)
-    systems/
-      DayNight.js      # Sky gradient, sun/moon/stars, skylight value
-      Lighting.js      # Tile light propagation + darkness overlay
-      Particles.js     # Mining debris, dust, weather (rain)
-      Inventory.js     # Wooden hotbar
-      Chat.js          # In-game world chat
+    config.js        # Game constants and zone definitions
+    city.js          # Procedural city map generator
+    ui.js            # Lobby/HUD screen manager
+    socket-client.js # Socket.io wrapper
     scenes/
-      PreloadScene.js  # Generates the tileset, player & enemy textures
-      GameScene.js     # Movement, mining/placing, multiplayer, enemies
-server/
-  index.js     # Express + Socket.io entry point
-  lobby.js     # Lobby / world-code management
-  world.js     # Per-world seed + authoritative block edits
-  gameState.js # Player presence & position relay
-  db.js        # SQLite connection
-  schema.sql   # Database schema
+      PreloadScene.js  # Asset loading, spritesheet slicing, animations
+      GameScene.js     # Main game loop
+    systems/
+      DayNight.js      # Day/night cycle + ambient scene tint
+      Lighting.js      # Night-time torch glow (player + landmarks)
+      Particles.js     # Ambient motes, footstep dust, rain weather
+      JobSystem.js     # Job/food store interaction
+      Minimap.js       # City overview minimap
+      Chat.js          # In-game lobby chat
+server/          # Backend
+  index.js       # Express + Socket.io entry point
+  lobby.js       # Lobby creation and management
+  gameState.js   # Player movement and state
+  jobs.js        # Job sessions and tick system
+  db.js          # SQLite connection
+  schema.sql     # Database schema
 ```

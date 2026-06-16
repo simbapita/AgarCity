@@ -41,7 +41,7 @@ var Minimap = (function() {
     var label = document.createElement('div');
     label.textContent = 'MAP (M)';
     label.style.fontSize = '7px';
-    label.style.color = '#888';
+    label.style.color = '#b89b6e';
     label.style.fontFamily = "'Press Start 2P', monospace";
     label.style.marginBottom = '3px';
     label.style.textAlign = 'left';
@@ -53,9 +53,10 @@ var Minimap = (function() {
     _canvas.style.width = SIZE + 'px';
     _canvas.style.height = SIZE + 'px';
     _canvas.style.display = 'block';
-    _canvas.style.border = '2px solid #ffd700';
+    _canvas.style.border = '3px solid #7a542e';
     _canvas.style.borderRadius = '4px';
-    _canvas.style.background = 'rgba(10, 10, 20, 0.7)';
+    _canvas.style.background = 'rgba(26, 18, 10, 0.8)';
+    _canvas.style.boxShadow = '0 0 0 2px #2a1a0c';
     _canvas.style.imageRendering = 'pixelated';
 
     _container.appendChild(label);
