@@ -1,207 +1,351 @@
-// ============================================================================
-//  UI — start / lobby / character-select screens + in-game HUD (hearts, depth,
-//  day phase). The hotbar is owned by Inventory.js; chat by Chat.js.
-// ============================================================================
-var UI = (function () {
+// Screen and UI manager
+var UI = (function() {
   var currentScreen = 'start';
-  var myInfo = null;
+  var myInfo = null;  // { playerId, saveCode, player, lobbyCode }
   var selectedChar = 0;
+  var selectedSpec = 'TECH';
   var isHost = false;
 
-  // pixel heart mask (7x6)
-  var HEART = [
-    [0,1,1,0,1,1,0],
-    [1,1,1,1,1,1,1],
-    [1,1,1,1,1,1,1],
-    [0,1,1,1,1,1,0],
-    [0,0,1,1,1,0,0],
-    [0,0,0,1,0,0,0],
-  ];
+  // Avatar rendering from the new per-character sprite strips
+  // (assets/chars/<name>.png — 14 frames, magenta #FF00FF background).
+  // We lazily load each strip, chroma-key frame 0, cache it, and draw the
+  // head region as a headshot. Caches keyed by character index.
+  var _stripImg = {};        // charIdx -> Image
+  var _stripFrame0 = {};     // charIdx -> offscreen canvas (frame 0, transparent bg)
 
-  // ---- character preview (mirrors PreloadScene player look) ----------------
-  function drawCharPreview(canvas, charIdx) {
-    var ch = CFG.CHARS[charIdx] || CFG.CHARS[0];
-    var c = canvas.getContext('2d');
-    var W = canvas.width, H = canvas.height;
-    c.clearRect(0, 0, W, H);
-    c.imageSmoothingEnabled = false;
-    var s = Math.floor(Math.min(W, H) / 36);
-    var cx = Math.floor(W / 2), top = Math.floor(H * 0.18);
-    function px(x, y, w, h, col) { c.fillStyle = col; c.fillRect(cx + x * s, top + y * s, w * s, h * s); }
-    // legs
-    px(-2, 18, 2, 8, '#3a3550'); px(0, 18, 2, 8, '#3a3550');
-    px(-3, 25, 3, 2, '#2a2030'); px(0, 25, 3, 2, '#2a2030');
-    // torso
-    px(-3, 9, 6, 10, ch.accent);
-    // arm
-    px(2, 10, 2, 8, ch.accent);
-    // head
-    px(-2, 0, 5, 9, '#e8b88f');
-    // hair
-    px(-3, -1, 6, 3, ch.hair); px(-3, 0, 1, 4, ch.hair);
-    // eye
-    px(1, 3, 1, 1, '#222');
+  function _getFrame0(charIdx, cb) {
+    if (_stripFrame0[charIdx]) { cb(_stripFrame0[charIdx]); return; }
+
+    var img = _stripImg[charIdx];
+    if (!img) {
+      img = new Image();
+      img.src = '/assets/chars/' + (CFG.CHAR_FILES[charIdx] || 'knight') + '.png';
+      _stripImg[charIdx] = img;
+    }
+    if (!img.complete || img.naturalWidth === 0) {
+      img.addEventListener('load', function() { _getFrame0(charIdx, cb); }, { once: true });
+      img.addEventListener('error', function() { /* strip missing — skip */ }, { once: true });
+      return;
+    }
+
+    // Strip is 14 frames wide; frame 0 is the leftmost cell.
+    var fw = Math.floor(img.naturalWidth / 14);
+    var fh = img.naturalHeight;
+    var off = document.createElement('canvas');
+    off.width = fw;
+    off.height = fh;
+    var octx = off.getContext('2d');
+    octx.drawImage(img, 0, 0, fw, fh, 0, 0, fw, fh);
+
+    // Chroma-key magenta (#FF00FF): R high, G low, B high
+    var d = octx.getImageData(0, 0, fw, fh);
+    var p = d.data;
+    for (var i = 0; i < p.length; i += 4) {
+      if (p[i] > 180 && p[i+1] < 80 && p[i+2] > 180) p[i+3] = 0;
+    }
+    octx.putImageData(d, 0, 0);
+
+    _stripFrame0[charIdx] = off;
+    cb(off);
   }
 
-  function _drawHearts(health) {
-    var cv = document.getElementById('hearts');
-    if (!cv) return;
-    var c = cv.getContext('2d');
-    c.clearRect(0, 0, cv.width, cv.height);
-    var scale = 2, hw = 7, hh = 6, gap = 2;
-    for (var i = 0; i < 5; i++) {
-      var frac = Math.max(0, Math.min(1, (health - i * 20) / 20));
-      var ox = i * (hw * scale + gap);
-      for (var y = 0; y < hh; y++) {
-        for (var x = 0; x < hw; x++) {
-          if (!HEART[y][x]) continue;
-          var lit = ((x + 0.5) / hw) <= frac;
-          c.fillStyle = lit ? '#e23b3b' : '#4a2024';
-          c.fillRect(ox + x * scale, y * scale, scale, scale);
-          if (lit && y < 2) { c.fillStyle = 'rgba(255,255,255,0.5)'; c.fillRect(ox + x * scale, y * scale, scale, 1); }
-        }
-      }
-    }
+  function drawAvatarOnCanvas(canvas, charIdx) {
+    _getFrame0(charIdx, function(frame) {
+      canvas.width = canvas.width;  // clear
+      var ctx = canvas.getContext('2d');
+      ctx.imageSmoothingEnabled = false;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      // Crop the head + shoulders region from the top of the frame
+      var fw = frame.width, fh = frame.height;
+      var sx = Math.floor(fw * 0.16);
+      var sy = Math.floor(fh * 0.02);
+      var sw = Math.floor(fw * 0.68);
+      var sh = Math.floor(fh * 0.46);
+      ctx.drawImage(frame, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+    });
   }
 
   function show(screen) {
-    ['start', 'lobby', 'charselect'].forEach(function (s) {
+    ['start','lobby','charselect','game'].forEach(function(s) {
       var el = document.getElementById('screen-' + s);
       if (el) el.style.display = (s === screen) ? 'flex' : 'none';
     });
     currentScreen = screen;
-    var inGame = (screen === 'game');
-    document.getElementById('hud').style.display = inGame ? 'flex' : 'none';
-    var hb = document.getElementById('hotbar'); if (hb) hb.style.display = inGame ? 'flex' : 'none';
-    var hl = document.getElementById('hb-label'); if (hl) hl.style.display = inGame ? 'block' : 'none';
-    if (inGame) {
-      setTimeout(function () {
+
+    if (screen === 'game') {
+      document.getElementById('hud').style.display = 'flex';
+      // Focus the Phaser canvas so keyboard input (WASD/arrows) works
+      setTimeout(function() {
         var canvas = document.querySelector('#game-canvas canvas');
-        if (canvas) { canvas.setAttribute('tabindex', '0'); canvas.focus(); }
+        if (canvas) {
+          canvas.setAttribute('tabindex', '0');
+          canvas.focus();
+        }
       }, 100);
+    } else {
+      document.getElementById('hud').style.display = 'none';
     }
   }
 
   function showError(msg) {
     var el = document.getElementById('error-msg');
     if (el) { el.textContent = msg; el.style.display = 'block'; }
-    setTimeout(function () { if (el) el.style.display = 'none'; }, 4000);
+    setTimeout(function() { if (el) el.style.display = 'none'; }, 4000);
   }
 
-  function _name() { return document.getElementById('input-name').value.trim(); }
-  function _save() { return document.getElementById('input-savecode').value.trim() || null; }
+  function _getName() {
+    return document.getElementById('input-name').value.trim();
+  }
+
+  function _getSaveCode() {
+    return document.getElementById('input-savecode').value.trim() || null;
+  }
 
   function init() {
-    document.getElementById('btn-solo').addEventListener('click', function () {
-      if (!_name()) return showError('Enter your name first.');
-      SC.emit('create_lobby', { username: _name(), saveCode: _save(), soloMode: true });
+    // Solo play
+    document.getElementById('btn-solo').addEventListener('click', function() {
+      var name = _getName();
+      if (!name) { showError('Enter your name first.'); return; }
+      SC.emit('create_lobby', { username: name, saveCode: _getSaveCode(), soloMode: true });
     });
-    document.getElementById('btn-create').addEventListener('click', function () {
-      if (!_name()) return showError('Enter your name first.');
-      SC.emit('create_lobby', { username: _name(), saveCode: _save(), soloMode: false });
+
+    // Create multiplayer lobby
+    document.getElementById('btn-create').addEventListener('click', function() {
+      var name = _getName();
+      if (!name) { showError('Enter your name first.'); return; }
+      SC.emit('create_lobby', { username: name, saveCode: _getSaveCode(), soloMode: false });
     });
-    document.getElementById('btn-join').addEventListener('click', function () {
+
+    // Join existing lobby
+    document.getElementById('btn-join').addEventListener('click', function() {
+      var name = _getName();
       var code = document.getElementById('input-lobbycode').value.trim();
-      if (!_name()) return showError('Enter your name first.');
-      if (!code) return showError('Enter a world code.');
-      SC.emit('join_lobby', { username: _name(), saveCode: _save(), code: code });
+      if (!name) { showError('Enter your name first.'); return; }
+      if (!code) { showError('Enter a lobby code.'); return; }
+      SC.emit('join_lobby', { username: name, saveCode: _getSaveCode(), code: code });
     });
 
-    var saved = localStorage.getItem('terracity_save');
-    if (saved) { try { var d = JSON.parse(saved); if (d.saveCode) document.getElementById('input-savecode').value = d.saveCode; if (d.username) document.getElementById('input-name').value = d.username; } catch (e) {} }
+    // Auto-fill from localStorage
+    var saved = localStorage.getItem('agarcity_save');
+    if (saved) {
+      try {
+        var data = JSON.parse(saved);
+        if (data.saveCode) document.getElementById('input-savecode').value = data.saveCode;
+        if (data.username) document.getElementById('input-name').value = data.username;
+      } catch(e) {}
+    }
 
-    document.getElementById('btn-start-game').addEventListener('click', function () { SC.emit('start_game'); });
-    document.getElementById('btn-copy-code').addEventListener('click', function () {
+    // Lobby screen
+    document.getElementById('btn-start-game').addEventListener('click', function() {
+      SC.emit('start_game');
+    });
+
+    document.getElementById('btn-copy-code').addEventListener('click', function() {
       var code = document.getElementById('lobby-code').textContent;
-      navigator.clipboard.writeText(code).then(function () {
-        var b = document.getElementById('btn-copy-code'); b.textContent = 'Copied!';
-        setTimeout(function () { b.textContent = 'Copy Code'; }, 1500);
+      navigator.clipboard.writeText(code).then(function() {
+        document.getElementById('btn-copy-code').textContent = 'Copied!';
+        setTimeout(function() {
+          document.getElementById('btn-copy-code').textContent = 'Copy Code';
+        }, 1500);
       });
     });
 
-    _buildCharSelect();
-    document.getElementById('btn-enter-game').addEventListener('click', function () {
+    // Char select
+    buildCharSelect();
+
+    document.getElementById('btn-enter-game').addEventListener('click', function() {
+      // GameScene._doStart emits player_ready once the scene is ready —
+      // don't emit here too (avoids double-init / teleport on the server).
       show('game');
-      if (window.startPhaserGame) window.startPhaserGame({ characterId: selectedChar, player: myInfo && myInfo.player });
+      if (window.startPhaserGame) {
+        window.startPhaserGame({
+          characterId: selectedChar,
+          specialization: selectedSpec,
+          player: myInfo && myInfo.player,
+        });
+      }
     });
 
-    SC.on('error', function (d) { showError(d.message || 'Something went wrong.'); });
-    SC.on('lobby_created', function (d) {
+    // Socket events
+    SC.on('error', function(d) { showError(d.message || 'Something went wrong.'); });
+
+    SC.on('lobby_created', function(d) {
       myInfo = { playerId: d.player.id, saveCode: d.saveCode, player: d.player, lobbyCode: d.code };
-      isHost = true; _saveBrowser(d.saveCode, d.player.username); _showSave(d.saveCode);
-      if (d.soloMode) { SC.emit('start_game'); return; }
-      _updateLobby(d); show('lobby');
+      isHost = true;
+      saveToBrowser(d.saveCode, d.player.username);
+      showSaveCode(d.saveCode);
+      // Solo mode: skip the lobby entirely and go straight to character select.
+      if (d.soloMode) {
+        SC.emit('start_game');
+        return;
+      }
+      updateLobbyScreen(d);
+      show('lobby');
     });
-    SC.on('lobby_joined', function (d) {
+
+    SC.on('lobby_joined', function(d) {
       myInfo = { playerId: d.player.id, saveCode: d.saveCode, player: d.player, lobbyCode: d.code };
-      isHost = false; _saveBrowser(d.saveCode, d.player.username); _showSave(d.saveCode);
-      _updateLobby(d); show('lobby');
+      isHost = false;
+      saveToBrowser(d.saveCode, d.player.username);
+      showSaveCode(d.saveCode);
+      updateLobbyScreen(d);
+      show('lobby');
     });
-    SC.on('lobby_updated', function (d) {
-      _updatePlayers(d);
+
+    SC.on('lobby_updated', function(d) {
+      updateLobbyPlayers(d);
       var btn = document.getElementById('btn-start-game');
       if (btn) {
         btn.disabled = !d.canStart || !isHost;
-        btn.textContent = isHost ? (d.canStart ? 'Start World!' : 'Waiting for players...') : 'Waiting for host...';
+        btn.textContent = isHost
+          ? (d.canStart ? 'Start Game!' : 'Waiting for players...')
+          : 'Waiting for host...';
       }
     });
-    SC.on('game_start', function () { show('charselect'); });
 
-    document.getElementById('game-canvas').addEventListener('click', function () {
+    SC.on('game_start', function(d) {
+      show('charselect');
+    });
+
+    // Click anywhere on game area to re-focus canvas for keyboard input
+    document.getElementById('game-canvas').addEventListener('click', function() {
       var canvas = document.querySelector('#game-canvas canvas');
-      if (canvas && currentScreen === 'game') { canvas.setAttribute('tabindex', '0'); canvas.focus(); }
+      if (canvas && currentScreen === 'game') {
+        canvas.setAttribute('tabindex', '0');
+        canvas.focus();
+      }
     });
   }
 
-  function _saveBrowser(code, user) { localStorage.setItem('terracity_save', JSON.stringify({ saveCode: code, username: user })); }
-  function _showSave(code) {
-    var el = document.getElementById('your-save-code'); if (el) el.textContent = code;
+  function saveToBrowser(saveCode, username) {
+    localStorage.setItem('agarcity_save', JSON.stringify({ saveCode: saveCode, username: username }));
+  }
+
+  function showSaveCode(code) {
+    var el = document.getElementById('your-save-code');
+    if (el) el.textContent = code;
     var box = document.getElementById('save-code-banner');
-    if (box) { box.style.display = 'flex'; setTimeout(function () { box.style.display = 'none'; }, 8000); }
+    if (box) { box.style.display = 'flex'; setTimeout(function() { box.style.display = 'none'; }, 8000); }
   }
-  function _updateLobby(d) {
-    var c = document.getElementById('lobby-code'); if (c) c.textContent = d.code || (myInfo && myInfo.lobbyCode) || '';
-    _updatePlayers(d);
+
+  function updateLobbyScreen(d) {
+    var codeEl = document.getElementById('lobby-code');
+    if (codeEl) codeEl.textContent = d.code || (myInfo && myInfo.lobbyCode) || '';
+    updateLobbyPlayers(d);
   }
-  function _updatePlayers(d) {
+
+  function updateLobbyPlayers(d) {
     var el = document.getElementById('lobby-players');
     if (!el || !d.players) return;
-    el.innerHTML = d.players.map(function (p) {
-      return '<div class="lobby-player"><canvas class="lobby-av" width="32" height="32" data-idx="' + (p.characterId || 0) + '"></canvas><span>' + _esc(p.username) + '</span></div>';
+    el.innerHTML = d.players.map(function(p) {
+      var charId = p.characterId || 0;
+      var ch = CFG.CHARS[charId] || CFG.CHARS[0];
+      var accent = ch.accent || '#ffd700';
+      return '<div class="lobby-player">' +
+        '<canvas class="lobby-avatar" width="40" height="40" data-idx="' + charId + '" style="border-radius:4px; border:2px solid ' + accent + '; background:rgba(255,255,255,0.05); width:40px; height:40px; image-rendering:pixelated;"></canvas>' +
+        '<span>' + escHtml(p.username) + '</span>' +
+        '</div>';
     }).join('');
-    el.querySelectorAll('.lobby-av').forEach(function (cv) { drawCharPreview(cv, parseInt(cv.dataset.idx, 10)); });
-    var cnt = document.getElementById('player-count'); if (cnt) cnt.textContent = d.players.length + ' / 8 players';
-    var w = document.getElementById('wait-msg');
-    if (w) {
-      if (d.canStart) { w.textContent = isHost ? 'Ready to start!' : 'Waiting for host...'; w.className = 'wait-msg ready'; }
-      else { var need = d.minToStart - d.players.length; w.textContent = 'Waiting for ' + need + ' more...'; w.className = 'wait-msg waiting'; }
+
+    // Draw all player avatars
+    el.querySelectorAll('.lobby-avatar').forEach(function(canvas) {
+      var charIdx = parseInt(canvas.dataset.idx, 10);
+      drawAvatarOnCanvas(canvas, charIdx);
+    });
+
+    var count = document.getElementById('player-count');
+    if (count) count.textContent = d.players.length + ' / 8 players';
+
+    var waitMsg = document.getElementById('wait-msg');
+    if (waitMsg) {
+      if (d.canStart) {
+        waitMsg.textContent = isHost ? 'Ready to start!' : 'Waiting for host to start...';
+        waitMsg.className = 'wait-msg ready';
+      } else {
+        var need = d.minToStart - d.players.length;
+        waitMsg.textContent = 'Waiting for ' + need + ' more player' + (need !== 1 ? 's' : '') + '...';
+        waitMsg.className = 'wait-msg waiting';
+      }
     }
   }
 
-  function _buildCharSelect() {
-    var grid = document.getElementById('char-grid');
-    if (!grid) return;
-    grid.innerHTML = CFG.CHARS.map(function (c, i) {
-      return '<div class="char-option ' + (i === 0 ? 'selected' : '') + '" data-idx="' + i + '">' +
-        '<canvas class="cs-av" width="56" height="56" data-idx="' + i + '"></canvas>' +
-        '<div class="char-name">' + c.name + '</div></div>';
-    }).join('');
-    grid.querySelectorAll('.cs-av').forEach(function (cv) { drawCharPreview(cv, parseInt(cv.dataset.idx, 10)); });
-    grid.addEventListener('click', function (e) {
-      var opt = e.target.closest('.char-option'); if (!opt) return;
-      selectedChar = parseInt(opt.dataset.idx, 10);
-      grid.querySelectorAll('.char-option').forEach(function (el) { el.classList.remove('selected'); });
-      opt.classList.add('selected');
-    });
+  function buildCharSelect() {
+    var charGrid = document.getElementById('char-grid');
+    if (charGrid) {
+      charGrid.innerHTML = CFG.CHARS.map(function(c, i) {
+        return '<div class="char-option ' + (i===0?'selected':'') + '" data-idx="' + i + '">' +
+          '<div class="char-avatar"><canvas class="char-select-avatar" width="50" height="50" data-idx="' + i + '" style="width:50px; height:50px; image-rendering:pixelated;"></canvas></div>' +
+          '<div class="char-name">' + c.name + '</div>' +
+          '</div>';
+      }).join('');
+
+      // Draw all character selection options
+      charGrid.querySelectorAll('.char-select-avatar').forEach(function(canvas) {
+        var charIdx = parseInt(canvas.dataset.idx, 10);
+        drawAvatarOnCanvas(canvas, charIdx);
+      });
+
+      charGrid.addEventListener('click', function(e) {
+        var opt = e.target.closest('.char-option');
+        if (!opt) return;
+        selectedChar = parseInt(opt.dataset.idx, 10);
+        charGrid.querySelectorAll('.char-option').forEach(function(el) { el.classList.remove('selected'); });
+        opt.classList.add('selected');
+      });
+    }
+
+    var specGrid = document.getElementById('spec-grid');
+    if (specGrid) {
+      specGrid.innerHTML = CFG.SPECS.map(function(s, i) {
+        return '<div class="spec-option ' + (i===0?'selected':'') + '" data-id="' + s.id + '">' +
+          '<div class="spec-icon">' + s.icon + '</div>' +
+          '<div class="spec-name">' + s.name + '</div>' +
+          '</div>';
+      }).join('');
+
+      specGrid.addEventListener('click', function(e) {
+        var opt = e.target.closest('.spec-option');
+        if (!opt) return;
+        selectedSpec = opt.dataset.id;
+        specGrid.querySelectorAll('.spec-option').forEach(function(el) { el.classList.remove('selected'); });
+        opt.classList.add('selected');
+      });
+    }
   }
 
-  function _esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
 
-  var PHASE_ICON = { day: '☀️', dusk: '🌇', night: '🌙', dawn: '🌅' };
   function updateHUD(data) {
-    if (data.health != null) _drawHearts(data.health);
-    var dep = document.getElementById('hud-depth'); if (dep && data.depth != null) dep.textContent = data.depth > 0 ? ('Depth ' + data.depth) : 'Surface';
-    var ph = document.getElementById('hud-phase'); if (ph && data.phase) ph.textContent = PHASE_ICON[data.phase] || '☀️';
+    var hBar  = document.getElementById('bar-health');
+    var fBar  = document.getElementById('bar-food');
+    var tokEl = document.getElementById('hud-tokens');
+    var xpEl  = document.getElementById('hud-xp');
+    var spEl  = document.getElementById('hud-spec');
+
+    if (hBar) {
+      hBar.style.width = Math.max(0, Math.min(100, data.health)) + '%';
+      hBar.style.background = data.health > 50 ? '#2ecc71' : data.health > 25 ? '#f39c12' : '#e74c3c';
+    }
+    if (fBar) {
+      fBar.style.width = Math.max(0, Math.min(100, data.food)) + '%';
+      fBar.style.background = data.food > 50 ? '#f39c12' : data.food > 25 ? '#e67e22' : '#c0392b';
+    }
+    if (tokEl) tokEl.textContent = Math.floor(data.tokens || 0);
+    if (xpEl)  xpEl.textContent  = data.jobXp || 0;
+    if (spEl && data.specialization && data.specialization !== 'NONE') {
+      var spec = CFG.SPECS.find(function(s) { return s.id === data.specialization; });
+      spEl.textContent = spec ? (spec.icon + ' ' + spec.name) : data.specialization;
+    }
+
+    // Day/night phase indicator
+    var phaseEl = document.getElementById('hud-phase');
+    if (phaseEl && window.DayNight) {
+      var PHASE_ICON = { day: '☀️', dusk: '🌇', night: '🌙', dawn: '🌅' };
+      var ph = DayNight.getPhase();
+      phaseEl.textContent = (PHASE_ICON[ph] || '☀️') + ' ' + ph.charAt(0).toUpperCase() + ph.slice(1);
+    }
   }
 
   function getMyInfo() { return myInfo; }
