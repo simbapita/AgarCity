@@ -12,8 +12,8 @@ CREATE TABLE IF NOT EXISTS players (
   house_level INTEGER DEFAULT 1,
   house_furniture TEXT DEFAULT '[]',
   outfit TEXT DEFAULT '{}',
-  spawn_x REAL DEFAULT 1120,
-  spawn_y REAL DEFAULT 1120,
+  spawn_x REAL DEFAULT 336,
+  spawn_y REAL DEFAULT 336,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
   last_seen TEXT DEFAULT CURRENT_TIMESTAMP
 );

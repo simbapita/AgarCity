@@ -3,22 +3,38 @@ var CFG = {
   WORLD_W: 70,
   WORLD_H: 70,
   SPEED: 160,
+  RUN_MULTIPLIER: 1.6,
 
   DRAIN: {
-    FOOD_WALK: 0.12,
-    FOOD_IDLE: 0.03,
+    FOOD_RUN:     0.22,
+    FOOD_WALK:    0.12,
+    FOOD_IDLE:    0.03,
     HEALTH_EMPTY: 0.07,
   },
 
+  // Filename order must match CHARS index (0-14)
+  CHAR_FILES: [
+    'knight', 'barbarian', 'dwarf', 'paladin', 'commander',
+    'wizard', 'ranger', 'assassin', 'cleric', 'priestess',
+    'soldier', 'blacksmith', 'farmer', 'merchant', 'maid'
+  ],
+
   CHARS: [
-    { body: '#e74c3c', outline: '#922b21', name: 'Red' },
-    { body: '#3498db', outline: '#1a5276', name: 'Blue' },
-    { body: '#2ecc71', outline: '#1a7a4a', name: 'Green' },
-    { body: '#f39c12', outline: '#9a6007', name: 'Gold' },
-    { body: '#9b59b6', outline: '#6c3483', name: 'Purple' },
-    { body: '#e67e22', outline: '#935116', name: 'Orange' },
-    { body: '#ec407a', outline: '#880e4f', name: 'Pink' },
-    { body: '#00bcd4', outline: '#006064', name: 'Cyan' },
+    { name: 'Knight'     },
+    { name: 'Barbarian'  },
+    { name: 'Dwarf'      },
+    { name: 'Paladin'    },
+    { name: 'Commander'  },
+    { name: 'Wizard'     },
+    { name: 'Ranger'     },
+    { name: 'Assassin'   },
+    { name: 'Cleric'     },
+    { name: 'Priestess'  },
+    { name: 'Soldier'    },
+    { name: 'Blacksmith' },
+    { name: 'Farmer'     },
+    { name: 'Merchant'   },
+    { name: 'Maid'       },
   ],
 
   SPECS: [
@@ -30,7 +46,6 @@ var CFG = {
     { id: 'ARTS',         name: 'Arts',          icon: '🎨', color: '#9b59b6' },
   ],
 
-  // Tile IDs
   T: {
     ROAD: 0, SIDEWALK: 1, GRASS: 2, BUILDING: 3,
     TREE: 4, PARK_PATH: 5,
@@ -41,22 +56,21 @@ var CFG = {
 
   WALKABLE: new Set([0, 1, 2, 5]),
 
-  // Colors for drawing tiles
   TILE_COLORS: {
-    0:  '#3a3a4a',  // road
-    1:  '#6e6e7e',  // sidewalk
-    2:  '#2d5a27',  // grass
-    3:  '#1a1a2e',  // building (dark)
-    4:  '#1a3d1a',  // tree (darker green)
-    5:  '#4a7a44',  // park path
-    6:  '#1a237e',  // tech building
-    7:  '#b71c1c',  // medical building
-    8:  '#e65100',  // food building
-    9:  '#4e342e',  // trades building
-    10: '#1b5e20',  // business building
-    11: '#4a148c',  // arts building
-    12: '#5d4037',  // house
-    13: '#00695c',  // shop
+    0:  '#3a3a4a',
+    1:  '#6e6e7e',
+    2:  '#2d5a27',
+    3:  '#1a1a2e',
+    4:  '#1a3d1a',
+    5:  '#4a7a44',
+    6:  '#1a237e',
+    7:  '#b71c1c',
+    8:  '#e65100',
+    9:  '#4e342e',
+    10: '#1b5e20',
+    11: '#4a148c',
+    12: '#5d4037',
+    13: '#00695c',
   },
 
   JOB_ZONES: [

@@ -61,14 +61,16 @@ function createLobby(socket, data, io) {
     minToStart: soloMode ? 1 : 2,
   });
 
-  _addToLobby(socket, lobbies.get(code), player, io);
-
+  // Emit lobby_created BEFORE _addToLobby so the client sets isHost=true
+  // before the lobby_updated broadcast arrives.
   socket.emit('lobby_created', {
     code,
     saveCode: player.save_code,
     player: serializePlayer(player),
     soloMode,
   });
+
+  _addToLobby(socket, lobbies.get(code), player, io);
 }
 
 function joinLobby(socket, data, io) {
