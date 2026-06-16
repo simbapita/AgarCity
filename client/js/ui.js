@@ -28,9 +28,13 @@ var UI = (function() {
       return;
     }
 
-    // Strip is 14 frames wide; frame 0 is the leftmost cell.
-    var fw = Math.floor(img.naturalWidth / 14);
-    var fh = img.naturalHeight;
+    // Detect layout: 8-col x 3-row grid (h > w/4) or 14-frame horizontal strip.
+    var iw = img.naturalWidth, ih = img.naturalHeight;
+    var COLS = (ih > iw / 4) ? 8 : 14;
+    var fw = Math.floor(iw / COLS);
+    var fh = (COLS === 8) ? Math.floor(ih / 3) : ih;
+
+    // Extract only frame 0 (top-left cell) into an offscreen canvas.
     var off = document.createElement('canvas');
     off.width = fw;
     off.height = fh;
@@ -53,15 +57,15 @@ var UI = (function() {
     _getFrame0(charIdx, function(frame) {
       canvas.width = canvas.width;  // clear
       var ctx = canvas.getContext('2d');
-      ctx.imageSmoothingEnabled = false;
+      ctx.imageSmoothingEnabled = true;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      // Crop the head + shoulders region from the top of the frame
+      // Square crop: 10% margin on each side, yields a portrait of head + upper body.
+      // Empirically matches character bounds (knight: x 35-287, y 52-511 in 352x512 frame).
       var fw = frame.width, fh = frame.height;
-      var sx = Math.floor(fw * 0.16);
-      var sy = Math.floor(fh * 0.02);
-      var sw = Math.floor(fw * 0.68);
-      var sh = Math.floor(fh * 0.46);
-      ctx.drawImage(frame, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+      var sx = Math.floor(fw * 0.10);
+      var sy = Math.floor(fh * 0.10);
+      var sw = Math.floor(fw * 0.72);
+      ctx.drawImage(frame, sx, sy, sw, sw, 0, 0, canvas.width, canvas.height);
     });
   }
 
