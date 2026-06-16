@@ -119,17 +119,126 @@ var PreloadScene = new Phaser.Class({
     ng.generateTexture('npc', 24, 24);
     ng.destroy();
 
-    // Car textures
+    // --- Citizen NPC spritesheets + animations ---
+    // 4 muted civilian variants, drawn as simple pixel-art silhouettes that read
+    // distinctly from the player characters. Each is a raw 256x48 canvas = 8 frames
+    // of 32x48: [0-1] idle bob, [2-5] walk leg-swing, [6-7] wave (one arm raised).
+    var citizenColors = ['#7f8c8d', '#95a5a6', '#bdc3c7', '#a0826d'];
+    for (var ci2 = 0; ci2 < citizenColors.length; ci2++) {
+      var citCanvas = document.createElement('canvas');
+      citCanvas.width  = 256;
+      citCanvas.height = 48;
+      var cc = citCanvas.getContext('2d');
+      var fill = citizenColors[ci2];
+
+      for (var fr = 0; fr < 8; fr++) {
+        var ox2 = fr * 32;
+        var cx2 = ox2 + 16;           // horizontal center of this frame
+        var bob = (fr < 2) ? (fr === 0 ? 0 : 2) : 0;  // idle breathing bob (frames 0-1)
+
+        // Walk leg-swing offset (frames 2-5 alternate), idle/wave use a slight stance
+        var swing;
+        if (fr >= 2 && fr <= 5) {
+          swing = (fr % 2 === 0) ? 4 : -4;
+        } else {
+          swing = 0;
+        }
+
+        cc.fillStyle   = fill;
+        cc.strokeStyle = 'rgba(0,0,0,0.45)';
+        cc.lineWidth   = 1;
+
+        // Legs: two 4x14 rects, swung apart for the walk cycle
+        cc.fillRect(cx2 - 6, 30 + bob, 4, 14 + swing);
+        cc.strokeRect(cx2 - 6, 30 + bob, 4, 14 + swing);
+        cc.fillRect(cx2 + 2, 30 + bob, 4, 14 - swing);
+        cc.strokeRect(cx2 + 2, 30 + bob, 4, 14 - swing);
+
+        // Torso: 10x16 rect below the head
+        cc.fillRect(cx2 - 5, 14 + bob, 10, 16);
+        cc.strokeRect(cx2 - 5, 14 + bob, 10, 16);
+
+        // Arms: two 3x10 rects either side of the torso
+        if (fr >= 6) {
+          // Wave frames: left arm hangs, right arm raised ~45 degrees
+          cc.fillRect(cx2 - 8, 16 + bob, 3, 10);
+          cc.strokeRect(cx2 - 8, 16 + bob, 3, 10);
+          cc.save();
+          cc.translate(cx2 + 6, 16 + bob);
+          cc.rotate(-Math.PI / 4);   // raise one arm to ~45 degrees
+          cc.fillRect(0, -3, 3, 10);
+          cc.strokeRect(0, -3, 3, 10);
+          cc.restore();
+        } else {
+          cc.fillRect(cx2 - 8, 16 + bob, 3, 10);
+          cc.strokeRect(cx2 - 8, 16 + bob, 3, 10);
+          cc.fillRect(cx2 + 5, 16 + bob, 3, 10);
+          cc.strokeRect(cx2 + 5, 16 + bob, 3, 10);
+        }
+
+        // Head: filled circle, radius ~6, top-center
+        cc.beginPath();
+        cc.arc(cx2, 8 + bob, 6, 0, Math.PI * 2);
+        cc.fill();
+        cc.stroke();
+      }
+
+      self.textures.addSpriteSheet('citizen_' + ci2, citCanvas, { frameWidth: 32, frameHeight: 48 });
+      self.anims.create({ key: 'citizen_' + ci2 + '_idle', frames: self.anims.generateFrameNumbers('citizen_' + ci2, { start: 0, end: 1 }), frameRate: 3, repeat: -1 });
+      self.anims.create({ key: 'citizen_' + ci2 + '_walk', frames: self.anims.generateFrameNumbers('citizen_' + ci2, { start: 2, end: 5 }), frameRate: 8, repeat: -1 });
+      self.anims.create({ key: 'citizen_' + ci2 + '_wave', frames: self.anims.generateFrameNumbers('citizen_' + ci2, { start: 6, end: 7 }), frameRate: 4, repeat: 0 });
+    }
+
+    // --- Exhaust smoke particle (radial gradient needs raw canvas) ---
+    var smokeCanvas = document.createElement('canvas');
+    smokeCanvas.width = 6; smokeCanvas.height = 6;
+    var sctx = smokeCanvas.getContext('2d');
+    var grad = sctx.createRadialGradient(3, 3, 0, 3, 3, 3);
+    grad.addColorStop(0, 'rgba(180,180,180,0.6)');
+    grad.addColorStop(1, 'rgba(100,100,100,0)');
+    sctx.fillStyle = grad;
+    sctx.fillRect(0, 0, 6, 6);
+    self.textures.addCanvas('smoke_puff', smokeCanvas);
+
+    // Car textures (48x26): rounded body + darker cabin, windshields, head/taillights
     var cg = self.make.graphics({ x: 0, y: 0, add: false });
     [0xe74c3c, 0x3498db, 0x2ecc71, 0xf1c40f, 0x9b59b6].forEach(function(col, ci) {
+      // Darker shade of the body color for the roof/cabin (each channel * ~0.6)
+      var dr = Math.floor(((col >> 16) & 0xff) * 0.6);
+      var dg = Math.floor(((col >> 8)  & 0xff) * 0.6);
+      var db = Math.floor((col & 0xff) * 0.6);
+      var darker = (dr << 16) | (dg << 8) | db;
+
+      // 1. Body
       cg.fillStyle(col, 1);
-      cg.fillRoundedRect(0, 0, 40, 22, 4);
+      cg.fillRoundedRect(0, 4, 48, 18, 4);
+      // 2. Roof / cabin (darker shade)
+      cg.fillStyle(darker, 1);
+      cg.fillRoundedRect(10, 2, 22, 10, 3);
+      // 3. Windshields
       cg.fillStyle(0x34495e, 1);
-      cg.fillRect(6, 4, 10, 14);
-      cg.fillRect(22, 4, 12, 14);
-      cg.generateTexture('car_' + ci, 40, 22);
+      cg.fillRect(12, 4, 8, 8);
+      cg.fillRect(28, 4, 8, 8);
+      // 4. Headlights (front = right)
+      cg.fillStyle(0xffd700, 1);
+      cg.fillRect(44, 8, 3, 3);
+      cg.fillRect(44, 15, 3, 3);
+      // 5. Taillights (rear = left)
+      cg.fillStyle(0xe74c3c, 1);
+      cg.fillRect(1, 8, 3, 3);
+      cg.fillRect(1, 15, 3, 3);
+
+      cg.generateTexture('car_' + ci, 48, 26);
       cg.clear();
     });
+
+    // Wheel dot (8x8): dark circle with a thin lighter spoke across the center
+    cg.fillStyle(0x222222, 1);
+    cg.fillCircle(4, 4, 3);
+    cg.lineStyle(1, 0x555555, 1);
+    cg.lineBetween(1, 4, 7, 4);
+    cg.generateTexture('wheel_dot', 8, 8);
+
     cg.destroy();
 
     self.scene.start('GameScene');

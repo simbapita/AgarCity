@@ -22,6 +22,7 @@ var GameScene = new Phaser.Class({
     this._tabKey         = null;
     this._scoreboard     = [];
     this._scoreVisible   = false;
+    this._carHitCooldown = 0;
   },
 
   create: function() {
@@ -438,29 +439,135 @@ var GameScene = new Phaser.Class({
 
   _spawnNPCs: function() {
     var self = this;
-    var routes = [
-      [{x:320,y:230},{x:700,y:230},{x:700,y:242},{x:320,y:242}],
-      [{x:900,y:780},{x:1300,y:780},{x:1300,y:792},{x:900,y:792}],
-      [{x:400,y:826},{x:800,y:826},{x:800,y:838},{x:400,y:838}],
-      [{x:200,y:1290},{x:600,y:1290},{x:600,y:1302},{x:200,y:1302}],
-      [{x:1100,y:270},{x:1500,y:270},{x:1500,y:282},{x:1100,y:282}],
-    ];
-    routes.forEach(function(route, ri) {
+    var NPC_SAFE_TILES = new Set([CFG.T.SIDEWALK, CFG.T.GRASS, CFG.T.PARK_PATH]);
+    // NOTE: Explicitly excludes ROAD (type 0). Do NOT use CFG.WALKABLE here.
+
+    // Build pool of pedestrian-safe tiles.
+    var pool = [];
+    for (var ty = 0; ty < CFG.WORLD_H; ty++) {
+      var row = self._cityMap[ty];
+      if (!row) continue;
+      for (var tx = 0; tx < CFG.WORLD_W; tx++) {
+        if (NPC_SAFE_TILES.has(row[tx])) pool.push({ tx: tx, ty: ty });
+      }
+    }
+
+    var count = Math.min(20, pool.length);
+    for (var n = 0; n < count; n++) {
+      var idx = Math.floor(Math.random() * pool.length);
+      var cell = pool.splice(idx, 1)[0];   // unique positions
+      var px = cell.tx * CFG.TILE + CFG.TILE / 2;
+      var py = cell.ty * CFG.TILE + CFG.TILE / 2;
+      var citizenId = Math.floor(Math.random() * 4);
+      var sprite = self.add.sprite(px, py, 'citizen_' + citizenId, 0);
+      sprite.setDepth(8).setOrigin(0.5, 0.5).setDisplaySize(32, 48);
+      sprite.anims.play('citizen_' + citizenId + '_idle', true);
       self._npcs.push({
-        sprite: self.add.image(route[0].x, route[0].y, 'npc').setDepth(8).setAlpha(0.75),
-        route: route, waypointIdx: 0, speed: 38 + ri * 6,
+        sprite: sprite,
+        citizenId: citizenId,
+        state: 'idle',
+        speed: 30 + Math.random() * 25,
+        targetX: null,
+        targetY: null,
+        pauseTimer: 1 + Math.random() * 3,
+        greetCooldown: 0,
+        bubbleText: null,
+        bubbleTimer: 0
       });
-    });
+    }
   },
 
   _updateNPCs: function(dt) {
-    this._npcs.forEach(function(npc) {
-      var target = npc.route[npc.waypointIdx];
-      var dx = target.x - npc.sprite.x, dy = target.y - npc.sprite.y;
-      var dist = Math.sqrt(dx*dx + dy*dy);
-      if (dist < 2) { npc.waypointIdx = (npc.waypointIdx+1) % npc.route.length; return; }
-      npc.sprite.x += (dx/dist) * npc.speed * dt;
-      npc.sprite.y += (dy/dist) * npc.speed * dt;
+    var self = this;
+    var NPC_SAFE_TILES = new Set([CFG.T.SIDEWALK, CFG.T.GRASS, CFG.T.PARK_PATH]);
+
+    self._npcs.forEach(function(npc) {
+      if (npc.greetCooldown > 0) npc.greetCooldown = Math.max(0, npc.greetCooldown - dt);
+
+      // Speech bubble follow + lifetime
+      if (npc.bubbleText) {
+        npc.bubbleTimer -= dt;
+        if (npc.bubbleTimer <= 0) {
+          npc.bubbleText.destroy();
+          npc.bubbleText = null;
+        } else {
+          npc.bubbleText.x = npc.sprite.x;
+          npc.bubbleText.y = npc.sprite.y - 36;
+        }
+      }
+
+      var key = 'citizen_' + npc.citizenId;
+
+      if (npc.state === 'idle') {
+        npc.sprite.anims.play(key + '_idle', true);
+        npc.pauseTimer -= dt;
+        if (npc.pauseTimer <= 0) {
+          var curTx = Math.floor(npc.sprite.x / CFG.TILE);
+          var curTy = Math.floor(npc.sprite.y / CFG.TILE);
+          var found = false;
+          for (var a = 0; a < 5; a++) {
+            var tx = curTx + Math.floor(Math.random() * 17) - 8;
+            var ty = curTy + Math.floor(Math.random() * 17) - 8;
+            if (tx < 0 || tx >= CFG.WORLD_W || ty < 0 || ty >= CFG.WORLD_H) continue;
+            if (self._cityMap[ty] && NPC_SAFE_TILES.has(self._cityMap[ty][tx])) {
+              npc.targetX = tx * CFG.TILE + CFG.TILE / 2;
+              npc.targetY = ty * CFG.TILE + CFG.TILE / 2;
+              npc.state = 'walking';
+              found = true;
+              break;
+            }
+          }
+          if (!found) npc.pauseTimer = 2 + Math.random() * 2;
+        }
+      } else if (npc.state === 'walking') {
+        npc.sprite.anims.play(key + '_walk', true);
+        npc.sprite.flipX = (npc.targetX < npc.sprite.x);
+        var dx = npc.targetX - npc.sprite.x;
+        var dy = npc.targetY - npc.sprite.y;
+        var dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 3) {
+          npc.sprite.x = npc.targetX;
+          npc.sprite.y = npc.targetY;
+          npc.pauseTimer = 1 + Math.random() * 3;
+          npc.state = 'idle';
+        } else {
+          npc.sprite.x += (dx / dist) * npc.speed * dt;
+          npc.sprite.y += (dy / dist) * npc.speed * dt;
+        }
+      } else if (npc.state === 'waving') {
+        npc.sprite.anims.play(key + '_wave', true);
+        if (npc.bubbleTimer <= 0) {
+          npc.state = 'idle';
+          npc.pauseTimer = 2;
+        }
+      }
+
+      // Proximity greeting
+      if (self._myPlayer && npc.state !== 'waving' && npc.greetCooldown <= 0) {
+        var pdx = npc.sprite.x - self._myPlayer.sprite.x;
+        var pdy = npc.sprite.y - self._myPlayer.sprite.y;
+        if (Math.sqrt(pdx * pdx + pdy * pdy) < 60) {
+          if (npc.bubbleText) { npc.bubbleText.destroy(); npc.bubbleText = null; }
+          npc.state = 'waving';
+          npc.greetCooldown = 15;
+          var greetings = ["Nice day today!", "Welcome to the city!",
+            "I hear the Chef job pays well!", "Have you visited the park?",
+            "Watch out for traffic!", "The Tech Office is hiring!",
+            "Don't forget to eat!", "Great weather for a walk!",
+            "The Art Gallery has new exhibits!", "Stay safe out there!"];
+          var greeting = greetings[Math.floor(Math.random() * greetings.length)];
+          npc.bubbleText = self.add.text(npc.sprite.x, npc.sprite.y - 36, greeting, {
+            fontSize: '7px',
+            fontFamily: "'Press Start 2P'",
+            color: '#fff',
+            backgroundColor: 'rgba(0,0,0,0.8)',
+            padding: { x: 6, y: 4 },
+            stroke: '#ffd700',
+            strokeThickness: 1
+          }).setOrigin(0.5, 1).setDepth(12);
+          npc.bubbleTimer = 3;
+        }
+      }
     });
   },
 
@@ -468,18 +575,111 @@ var GameScene = new Phaser.Class({
     var self = this;
     [{x:200,y:272,vx:60,ci:0},{x:1200,y:288,vx:-50,ci:1},{x:100,y:800,vx:70,ci:2},
      {x:700,y:816,vx:-45,ci:3},{x:400,y:1312,vx:55,ci:4}].forEach(function(def) {
-      var sprite = self.add.image(def.x, def.y, 'car_'+def.ci).setDepth(7);
-      if (def.vx < 0) sprite.flipX = true;
-      self._cars.push({ sprite: sprite, vx: def.vx });
+      var container = self.add.container(def.x, def.y);
+      container.setDepth(7);
+
+      // Children added back-to-front (Container ignores child setDepth).
+      var body = self.add.image(0, 0, 'car_' + def.ci);
+      body.setOrigin(0.5, 0.5);
+      if (def.vx < 0) body.flipX = true;
+      container.add(body);
+
+      var frontWheelX = def.vx > 0 ? 14 : -14;
+      var rearWheelX  = def.vx > 0 ? -14 : 14;
+      var w1 = self.add.image(rearWheelX, 10, 'wheel_dot');
+      var w2 = self.add.image(frontWheelX, 10, 'wheel_dot');
+      container.add(w1);
+      container.add(w2);
+
+      // Phaser 3.60 particle API: add.particles(x, y, key, config). Emitter is
+      // NOT a child of the container (avoids blend bleed); it follows it.
+      var exhaustOffsetX = def.vx > 0 ? -24 : 24;
+      var emitter = self.add.particles(def.x + exhaustOffsetX, def.y + 4, 'smoke_puff', {
+        speed: { min: 5, max: 20 },
+        scale: { start: 0.8, end: 0.2 },
+        alpha: { start: 0.5, end: 0 },
+        lifespan: 600,
+        frequency: 200,
+        maxParticles: 8,
+        blendMode: 'NORMAL'
+      });
+      emitter.setDepth(6);
+      emitter.startFollow(container, exhaustOffsetX, 4);
+
+      self._cars.push({
+        container: container,
+        body: body,
+        vx: def.vx,
+        effectiveVx: def.vx,
+        baseY: def.y,
+        wheels: [w1, w2],
+        braking: false,
+        emitter: emitter
+      });
     });
   },
 
   _updateCars: function(dt) {
+    var self = this;
     var W = CFG.WORLD_W * CFG.TILE;
-    this._cars.forEach(function(car) {
-      car.sprite.x += car.vx * dt;
-      if (car.vx > 0 && car.sprite.x > W+50) car.sprite.x = -50;
-      if (car.vx < 0 && car.sprite.x < -50)  car.sprite.x = W+50;
+    self._carBobT = (self._carBobT || 0) + dt;   // suspension phase (replaces `time`)
+
+    self._cars.forEach(function(car) {
+      // 1. OBSTACLE DETECTION
+      car.braking = false;
+      var ahead = car.vx > 0 ? 1 : -1;
+      if (self._myPlayer && self._carHitCooldown <= 0) {
+        var pdx = self._myPlayer.sprite.x - car.container.x;
+        var pdy = self._myPlayer.sprite.y - car.container.y;
+        if (pdx * ahead > 0 && Math.abs(pdx) < 80 && Math.abs(pdy) < 20) car.braking = true;
+      }
+      for (var j = 0; j < self._cars.length; j++) {
+        var other = self._cars[j];
+        if (other === car) continue;
+        var cdx = other.container.x - car.container.x;
+        var cdy = other.container.y - car.container.y;
+        if (cdx * ahead > 0 && Math.abs(cdx) < 80 && Math.abs(cdy) < 20) car.braking = true;
+      }
+
+      // 2. SPEED & MOVEMENT
+      if (car.braking) {
+        car.effectiveVx *= 0.92;
+        if (Math.abs(car.effectiveVx) < 1) car.effectiveVx = 0;
+      } else {
+        car.effectiveVx += (car.vx - car.effectiveVx) * 0.05;
+      }
+      car.container.x += car.effectiveVx * dt;
+
+      // 3. SUSPENSION BOBBING (uses scene accumulator, not update's `time`)
+      car.container.y = car.baseY + Math.sin(self._carBobT * 4) * 1.5;
+
+      // 4. WHEEL ROTATION
+      car.wheels[0].rotation += car.effectiveVx * dt * 0.05;
+      car.wheels[1].rotation += car.effectiveVx * dt * 0.05;
+
+      // 5. SCREEN WRAP
+      if (car.effectiveVx > 0 && car.container.x > W + 60) { car.container.x = -60; car.effectiveVx = car.vx; }
+      if (car.effectiveVx < 0 && car.container.x < -60)    { car.container.x = W + 60; car.effectiveVx = car.vx; }
+
+      // 6. COLLISION DAMAGE (client-side only, mirrors food drain pattern)
+      if (self._myPlayer && self._carHitCooldown <= 0 && Math.abs(car.effectiveVx) > 15) {
+        var ps = self._myPlayer.data;
+        var sp = self._myPlayer.sprite;
+        var hitDx = sp.x - car.container.x;
+        var hitDy = sp.y - car.container.y;
+        if (Math.abs(hitDx) < 30 && Math.abs(hitDy) < 18) {
+          ps.health = Math.max(0, ps.health - 10);
+          var knockDir = car.vx > 0 ? 1 : -1;
+          sp.x = Math.max(0, Math.min(W, sp.x + knockDir * 60));
+          sp.y = Math.max(0, Math.min(W, sp.y - 20));
+          self._carHitCooldown = 1.5;
+          sp.setTint(0xff0000);
+          self.time.delayedCall(300, function() { sp.clearTint(); });
+          self._updateHUD(ps);
+        }
+      }
     });
+
+    if (self._carHitCooldown > 0) self._carHitCooldown -= dt;
   },
 });
