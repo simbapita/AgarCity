@@ -1,26 +1,34 @@
-// Phaser bootstrap — runs on page load, game world starts after login.
-(function () {
+// Phaser game init — runs on page load in background
+(function() {
+  var W = CFG.WORLD_W * CFG.TILE;  // 70*32 = 2240
+  var H = CFG.WORLD_H * CFG.TILE;  // 70*32 = 2240
+
   var config = {
     type: Phaser.AUTO,
+    width: window.innerWidth,
+    height: window.innerHeight,
     parent: 'game-canvas',
-    backgroundColor: '#1a1a2e',
-    pixelArt: true,
-    roundPixels: true,
-    input: { keyboard: { target: window } },
+    backgroundColor: '#0a0a14',
+    input: {
+      keyboard: {
+        target: window,
+      },
+    },
     physics: {
       default: 'arcade',
-      arcade: { gravity: { y: CFG.GRAVITY }, debug: false },
+      arcade: { gravity: { y: 0 }, debug: false },
     },
     scene: [PreloadScene, GameScene],
     scale: {
       mode: Phaser.Scale.RESIZE,
       autoCenter: Phaser.Scale.CENTER_BOTH,
-      width: window.innerWidth,
-      height: window.innerHeight,
     },
   };
 
-  window._phaserGame = new Phaser.Game(config);
+  var game = new Phaser.Game(config);
+  window._phaserGame = game;
+
+  // Connect socket
   SC.connect();
   UI.init();
 })();
