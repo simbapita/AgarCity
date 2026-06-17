@@ -69,6 +69,82 @@ var Audio = (function() {
     }
   }
 
+  // ─── Procedural fallback tones (used when audio file is missing) ───────────
+
+  var _synthDefs = {
+    'bgm_day.ogg':             { t:'tone',  f:261.6, d:2.0,  a:0.18 },
+    'bgm_night.ogg':           { t:'tone',  f:196.0, d:2.0,  a:0.18 },
+    'bgm_dusk.ogg':            { t:'tone',  f:220.0, d:2.0,  a:0.18 },
+    'ambi_city.ogg':           { t:'noise', f:80,    d:2.0,  a:0.06 },
+    'ambi_rain.ogg':           { t:'noise', f:0,     d:2.0,  a:0.09 },
+    'ambi_wind.ogg':           { t:'noise', f:0,     d:2.0,  a:0.07 },
+    'sfx_footstep_road.ogg':   { t:'click', f:200,   d:0.08, a:0.25 },
+    'sfx_footstep_stone.ogg':  { t:'click', f:300,   d:0.08, a:0.25 },
+    'sfx_footstep_grass.ogg':  { t:'click', f:120,   d:0.08, a:0.22 },
+    'sfx_footstep_gravel.ogg': { t:'click', f:250,   d:0.08, a:0.22 },
+    'sfx_car_hit.ogg':         { t:'noise', f:0,     d:0.35, a:0.40 },
+    'sfx_job_complete.ogg':    { t:'arp',   f:261.6, d:0.50, a:0.30 },
+    'sfx_qte_success.ogg':     { t:'chord', f:523.3, d:0.22, a:0.22 },
+    'sfx_qte_fail.ogg':        { t:'tone',  f:220,   d:0.28, a:0.28 },
+    'sfx_food_buy.ogg':        { t:'tone',  f:494,   d:0.18, a:0.25 },
+    'sfx_npc_greet.ogg':       { t:'arp',   f:392,   d:0.19, a:0.20 },
+    'ui_hover.ogg':            { t:'tone',  f:880,   d:0.04, a:0.18 },
+    'ui_click.ogg':            { t:'tone',  f:660,   d:0.08, a:0.25 },
+    'ui_error.ogg':            { t:'tone',  f:220,   d:0.22, a:0.28 },
+  };
+
+  function _synthBuffer(name) {
+    if (!_ctx) return null;
+    var def = _synthDefs[name];
+    if (!def) return null;
+    var sr = _ctx.sampleRate;
+    var n  = Math.max(1, Math.ceil(sr * def.d)) | 0;
+    var buf = _ctx.createBuffer(1, n, sr);
+    var d   = buf.getChannelData(0);
+    var fade = Math.min((0.01 * sr) | 0, (n / 4) | 0);
+
+    function env(i) {
+      if (i < fade) return i / fade;
+      if (i > n - fade) return (n - i) / fade;
+      return 1;
+    }
+
+    if (def.t === 'tone') {
+      for (var i = 0; i < n; i++)
+        d[i] = def.a * env(i) * Math.sin(2 * Math.PI * def.f * i / sr);
+    } else if (def.t === 'noise') {
+      var hum = def.f > 0;
+      for (var i = 0; i < n; i++) {
+        var lfo = 0.6 + 0.4 * Math.sin(2 * Math.PI * 0.3 * i / sr);
+        d[i] = env(i) * lfo * (def.a * (2 * Math.random() - 1) + (hum ? 0.05 * Math.sin(2 * Math.PI * def.f * i / sr) : 0));
+      }
+    } else if (def.t === 'click') {
+      for (var i = 0; i < n; i++) {
+        var decay = Math.exp(-i / (0.3 * n));
+        d[i] = def.a * decay * Math.sin(2 * Math.PI * def.f * i / sr) +
+               0.08 * decay * (2 * Math.random() - 1);
+      }
+    } else if (def.t === 'arp') {
+      var freqs = [def.f, def.f * 1.26, def.f * 1.5, def.f * 2];
+      var seg = (n / freqs.length) | 0;
+      for (var fi = 0; fi < freqs.length; fi++) {
+        var start = fi * seg, end = Math.min(start + seg, n);
+        var segFade = Math.min(4, (seg / 4) | 0);
+        for (var i = start; i < end; i++) {
+          var li = i - start, slen = end - start;
+          var se = (li < segFade) ? li / segFade : (li > slen - segFade) ? (slen - li) / segFade : 1;
+          d[i] = def.a * se * Math.sin(2 * Math.PI * freqs[fi] * i / sr);
+        }
+      }
+    } else if (def.t === 'chord') {
+      var cf = [def.f, def.f * 1.26, def.f * 1.5];
+      for (var i = 0; i < n; i++) {
+        d[i] = def.a * env(i) * (Math.sin(2*Math.PI*cf[0]*i/sr) + Math.sin(2*Math.PI*cf[1]*i/sr) + Math.sin(2*Math.PI*cf[2]*i/sr)) / 3;
+      }
+    }
+    return buf;
+  }
+
   // ─── Buffer loading (cached, graceful on missing files) ────────────────────
 
   function _getBuffer(name) {
@@ -86,11 +162,11 @@ var Audio = (function() {
         delete _pending[name];
         return buf;
       })
-      .catch(function(e) {
-        console.warn('[Audio] ' + name + ' not loaded (' + e.message + ')');
-        _buffers[name] = null;   // cache failure so we never retry
+      .catch(function() {
+        var synth = _synthBuffer(name);
+        _buffers[name] = synth;
         delete _pending[name];
-        return null;
+        return synth;
       });
 
     return _pending[name];
