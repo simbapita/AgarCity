@@ -23,6 +23,7 @@ var JobSystem = (function() {
       _activeJob = null;
       _hideProgress();
       _showReward(d);
+      if (window.Audio) Audio.playSFX('sfx_job_complete.ogg');
       if (_onUpdate) _onUpdate({ type: 'job_complete', data: d });
     });
 
@@ -35,6 +36,7 @@ var JobSystem = (function() {
     });
 
     SC.on('food_bought', function(d) {
+      if (window.Audio) Audio.playSFX('sfx_food_buy.ogg');
       if (_onUpdate) _onUpdate({ type: 'food_bought', data: d });
     });
 
@@ -45,9 +47,11 @@ var JobSystem = (function() {
     SC.on('qte_result', function(d) {
       _cancelQteAnimation();
       if (d.outcome === 'success') {
+        if (window.Audio) Audio.playSFX('sfx_qte_success.ogg');
         _showQteFeedback('✓', '#8fd46a');
         _flashBonus();
       } else {
+        if (window.Audio) Audio.playSFX('sfx_qte_fail.ogg');
         _showQteFeedback('✗', '#e74c3c');
       }
     });
@@ -56,10 +60,9 @@ var JobSystem = (function() {
     document.addEventListener('keydown', _handleQteKey);
   }
 
-  // Called every frame from GameScene.update — returns the nearby zone or null
+  // Called every frame from GameScene.update
   function update(px, py, eJustPressed, playerSpec) {
     if (_activeJob) {
-      // Update progress bar
       var elapsed = (Date.now() - _activeJob.startTime) / 1000;
       var pct = Math.min(100, (elapsed / _activeJob.duration) * 100);
       var fillEl = document.getElementById('job-progress-fill');
@@ -69,7 +72,6 @@ var JobSystem = (function() {
       return null;
     }
 
-    // Check job zones
     var zones = CFG.JOB_ZONES || [];
     for (var i = 0; i < zones.length; i++) {
       var z = zones[i];
@@ -86,7 +88,6 @@ var JobSystem = (function() {
       }
     }
 
-    // Check food stores
     var stores = CFG.FOOD_STORES || [];
     for (var i = 0; i < stores.length; i++) {
       var s = stores[i];
@@ -161,7 +162,7 @@ var JobSystem = (function() {
     el.innerHTML = '💰 +' + d.tokensEarned + ' tokens &nbsp; ⭐ +' + d.xpEarned + ' XP' + tierUp;
     el.style.display = 'block';
     el.style.animation = 'none';
-    void el.offsetWidth; // reflow
+    void el.offsetWidth;
     el.style.animation = 'rewardPop 3s ease forwards';
   }
 
@@ -215,14 +216,12 @@ var JobSystem = (function() {
 
       ctx.clearRect(0, 0, W, H);
 
-      // Background ring
       ctx.beginPath();
       ctx.arc(cx, cy, radius, 0, Math.PI * 2);
       ctx.strokeStyle = '#2a1a0c';
       ctx.lineWidth = 8;
       ctx.stroke();
 
-      // Shrinking progress arc (green to red as time runs out)
       if (t > 0) {
         ctx.beginPath();
         ctx.arc(cx, cy, radius, -Math.PI / 2, -Math.PI / 2 + t * Math.PI * 2);

@@ -33,12 +33,10 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      /* warm vignette over a dark woodland backdrop */
       background:
         radial-gradient(circle at 50% 40%, rgba(60,40,20,0.55), rgba(10,7,3,0.92));
     }
 
-    /* Wooden plank panel with a carved bevel border */
     .panel {
       background: linear-gradient(#5a3a1e, #3e2713);
       border: none;
@@ -79,7 +77,6 @@
       margin-top: 14px;
     }
 
-    /* Parchment-style inputs */
     input[type="text"] {
       width: 100%;
       padding: 10px 12px;
@@ -96,7 +93,6 @@
     input[type="text"]::placeholder { color: #9c855c; }
     input[type="text"]:focus { box-shadow: inset 0 2px 4px rgba(0,0,0,0.25), 0 0 0 2px #ffd98a; }
 
-    /* Carved wooden buttons */
     .btn {
       display: inline-block;
       padding: 12px 20px;
@@ -425,7 +421,6 @@
     #hud-spec { font-size: 7px; color: #b89b6e; white-space: nowrap; }
     #hud-phase { font-size: 8px; color: #ffd98a; white-space: nowrap; }
 
-    /* Wooden HUD bar across the top */
     #hud {
       display: none;
       position: fixed;
@@ -456,6 +451,51 @@
     .hud-stat { font-size: 8px; color: #ffd98a; white-space: nowrap; }
     .hud-sep { color: #5a4026; font-size: 10px; }
     #hud-controls { margin-left: auto; font-size: 7px; color: #7a6244; }
+
+    #audio-settings {
+      display: none;
+      position: fixed;
+      top: 50px;
+      right: 16px;
+      z-index: 90;
+      background: linear-gradient(#5a3a1e, #3e2713);
+      border: none;
+      border-radius: 6px;
+      padding: 16px 20px;
+      min-width: 220px;
+      box-shadow: 0 0 0 3px #7a542e, 0 4px 20px rgba(0,0,0,0.6);
+      pointer-events: all;
+    }
+    #audio-settings .as-title {
+      font-size: 9px;
+      color: #ffd98a;
+      text-align: center;
+      margin-bottom: 14px;
+      letter-spacing: 2px;
+    }
+    #audio-settings .as-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 8px 0;
+      font-size: 7px;
+      color: #d8bd8d;
+    }
+    #audio-settings input[type=range] {
+      width: 110px;
+      accent-color: #ffd98a;
+      cursor: pointer;
+    }
+    #btn-audio-toggle {
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      font-size: 12px;
+      color: #b89b6e;
+      padding: 0 0 0 8px;
+      line-height: 1;
+    }
+    #btn-audio-toggle:hover { color: #ffd98a; }
   </style>
 </head>
 <body>
@@ -623,6 +663,27 @@
     <span class="hud-sep">|</span>
     <span id="hud-spec" class="hud-label"></span>
     <div id="hud-controls">WASD move &middot; Shift run &middot; E interact &middot; Enter chat &middot; Tab scores &middot; M map</div>
+    <button id="btn-audio-toggle" title="Audio Settings" onclick="var p=document.getElementById('audio-settings');p.style.display=p.style.display==='block'?'none':'block'">&#128266;</button>
+  </div>
+
+  <!-- Audio settings panel (Phase 5) -->
+  <div id="audio-settings">
+    <div class="as-title">&#128266; AUDIO</div>
+    <div class="as-row"><span>Master</span>
+      <input type="range" min="0" max="1" step="0.01" value="1" id="vol-master"
+        oninput="if(window.Audio)Audio.setMasterVolume(+this.value)"></div>
+    <div class="as-row"><span>Music</span>
+      <input type="range" min="0" max="1" step="0.01" value="0.6" id="vol-bgm"
+        oninput="if(window.Audio)Audio.setBGMVolume(+this.value)"></div>
+    <div class="as-row"><span>SFX</span>
+      <input type="range" min="0" max="1" step="0.01" value="0.8" id="vol-sfx"
+        oninput="if(window.Audio)Audio.setSFXVolume(+this.value)"></div>
+    <div class="as-row"><span>Ambience</span>
+      <input type="range" min="0" max="1" step="0.01" value="0.4" id="vol-ambi"
+        oninput="if(window.Audio)Audio.setAmbienceVolume(+this.value)"></div>
+    <div class="as-row"><span>UI</span>
+      <input type="range" min="0" max="1" step="0.01" value="0.7" id="vol-ui"
+        oninput="if(window.Audio)Audio.setUIVolume(+this.value)"></div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
@@ -634,11 +695,24 @@
   <script src="/js/systems/DayNight.js"></script>
   <script src="/js/systems/Lighting.js"></script>
   <script src="/js/systems/Particles.js"></script>
+  <script src="/js/systems/Audio.js"></script>
   <script src="/js/systems/JobSystem.js"></script>
   <script src="/js/systems/Minimap.js"></script>
   <script src="/js/systems/Chat.js"></script>
   <script src="/js/scenes/PreloadScene.js"></script>
   <script src="/js/scenes/GameScene.js"></script>
   <script src="/js/main.js"></script>
+  <script>
+    (function() {
+      try {
+        var p = JSON.parse(localStorage.getItem('agarcity_audio') || '{}');
+        if (p.master !== undefined) document.getElementById('vol-master').value = p.master;
+        if (p.bgm    !== undefined) document.getElementById('vol-bgm').value    = p.bgm;
+        if (p.sfx    !== undefined) document.getElementById('vol-sfx').value    = p.sfx;
+        if (p.ambi   !== undefined) document.getElementById('vol-ambi').value   = p.ambi;
+        if (p.ui     !== undefined) document.getElementById('vol-ui').value     = p.ui;
+      } catch(e) {}
+    })();
+  </script>
 </body>
 </html>
