@@ -450,8 +450,10 @@ var GameScene = new Phaser.Class({
 
   _spawnNPCs: function() {
     var self = this;
-    var NPC_SAFE_TILES = new Set([CFG.T.SIDEWALK, CFG.T.GRASS, CFG.T.PARK_PATH]);
+    // Built once; _updateNPCs reuses self._npcSafeTiles to avoid per-frame allocation.
     // NOTE: Explicitly excludes ROAD (type 0). Do NOT use CFG.WALKABLE here.
+    var NPC_SAFE_TILES = new Set([CFG.T.SIDEWALK, CFG.T.GRASS, CFG.T.PARK_PATH]);
+    self._npcSafeTiles = NPC_SAFE_TILES;
 
     // Build pool of pedestrian-safe tiles.
     var pool = [];
@@ -490,7 +492,7 @@ var GameScene = new Phaser.Class({
 
   _updateNPCs: function(dt) {
     var self = this;
-    var NPC_SAFE_TILES = new Set([CFG.T.SIDEWALK, CFG.T.GRASS, CFG.T.PARK_PATH]);
+    var NPC_SAFE_TILES = self._npcSafeTiles;
 
     self._npcs.forEach(function(npc) {
       if (npc.greetCooldown > 0) npc.greetCooldown = Math.max(0, npc.greetCooldown - dt);

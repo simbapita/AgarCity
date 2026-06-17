@@ -139,7 +139,7 @@ function tickJobs(io, playerToSocket) {
     // QTE: expire a pending prompt that was missed
     if (s.pendingQte && now > s.pendingQte.expiresAt) {
       s.pendingQte = null;
-      s.qteStallMs += 3000;
+      s.qteStallMs = Math.min(s.qteStallMs + 3000, s.durationMs * 2);
       s.nextQteAt = now + 5000 + Math.random() * 5000;
       if (socketId) io.to(socketId).emit('qte_result', { outcome: 'miss' });
     }
@@ -151,9 +151,12 @@ function tickJobs(io, playerToSocket) {
       if (socketId) io.to(socketId).emit('qte_prompt', { key: key, windowMs: QTE_WINDOW_MS });
     }
 
-    // Completion check (adjusted by stall time and successes)
-    var effectiveEnd = s.startTime + s.durationMs + s.qteStallMs
-                       - (s.qteSuccessCount * 5000);
+    // Completion check (adjusted by stall time and successes).
+    // Floor at startTime+5000 so a streak of successes can't trigger instant completion.
+    var effectiveEnd = Math.max(
+      s.startTime + s.durationMs + s.qteStallMs - (s.qteSuccessCount * 5000),
+      s.startTime + 5000
+    );
     if (now < effectiveEnd) return;
 
     // Job complete
@@ -216,7 +219,7 @@ function respondQte(socket, data) {
     s.qteStallMs = Math.max(0, s.qteStallMs - 5000);
     socket.emit('qte_result', { outcome: 'success' });
   } else {
-    s.qteStallMs += 3000;
+    s.qteStallMs = Math.min(s.qteStallMs + 3000, s.durationMs * 2);
     socket.emit('qte_result', { outcome: 'fail' });
   }
 }

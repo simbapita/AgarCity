@@ -52,6 +52,7 @@ var JobSystem = (function() {
       }
     });
 
+    document.removeEventListener('keydown', _handleQteKey);
     document.addEventListener('keydown', _handleQteKey);
   }
 
