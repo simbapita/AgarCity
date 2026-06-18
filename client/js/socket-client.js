@@ -16,10 +16,12 @@ var SC = (function() {
 
     var events = [
       'connect', 'disconnect', 'error',
-      'lobby_created', 'lobby_joined', 'lobby_updated', 'can_start', 'game_start',
+      'lobby_created', 'lobby_joined', 'lobby_updated', 'game_start',
       'game_state_init', 'player_joined_game', 'player_left_game',
       'player_moved', 'position_correction',
       'job_started', 'job_complete', 'job_cancelled', 'food_bought',
+      'chat_message', 'scoreboard',
+      'qte_prompt', 'qte_result',
     ];
 
     events.forEach(function(ev) {

@@ -155,7 +155,9 @@ function leaveLobby(socket, io) {
   }
 
   socketToPlayer.delete(socket.id);
-  playerToSocket.delete(playerId);
+  // Only clear the player->socket mapping if it still points at THIS socket
+  // (a second connection for the same save code may have replaced it).
+  if (playerToSocket.get(playerId) === socket.id) playerToSocket.delete(playerId);
 }
 
 function getLobbyBySocket(socketId) {

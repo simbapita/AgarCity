@@ -1,5 +1,6 @@
 const { stmts } = require('./db');
 const { getLobbyBySocket, socketToPlayer } = require('./lobby');
+const { applyServerStats } = require('./gameState');
 
 const TIERS = {
   TECH:         [
@@ -82,6 +83,11 @@ function startJob(socket, data, io) {
     zoneId: data.zoneId,
     startTime: Date.now(),
     durationMs: job.dur * 1000,
+    // QTE fields
+    qteSuccessCount: 0,
+    qteStallMs: 0,
+    nextQteAt: Date.now() + 5000 + Math.random() * 5000,
+    pendingQte: null,
   });
 
   socket.emit('job_started', {
@@ -117,14 +123,41 @@ function buyFood(socket, data) {
   const newTokens = db.tokens - cost;
   const newFood = Math.min(100, (db.food || 100) + restore);
   stmts.updateStats.run({ id: playerId, tokens: newTokens, health: db.health, food: newFood });
+  applyServerStats(playerId, { tokens: newTokens, food: newFood });
   socket.emit('food_bought', { tokens: newTokens, food: newFood, cost, restored: restore });
 }
 
 // Called every 500ms from server/index.js
 function tickJobs(io, playerToSocket) {
-  const now = Date.now();
-  sessions.forEach((s, playerId) => {
-    if (now - s.startTime < s.durationMs) return;
+  var KEYS = ['UP', 'DOWN', 'LEFT', 'RIGHT'];
+  var QTE_WINDOW_MS = 1500;
+  var now = Date.now();
+
+  sessions.forEach(function(s, playerId) {
+    var socketId = playerToSocket.get(playerId);
+
+    // QTE: expire a pending prompt that was missed
+    if (s.pendingQte && now > s.pendingQte.expiresAt) {
+      s.pendingQte = null;
+      s.qteStallMs = Math.min(s.qteStallMs + 3000, s.durationMs * 2);
+      s.nextQteAt = now + 5000 + Math.random() * 5000;
+      if (socketId) io.to(socketId).emit('qte_result', { outcome: 'miss' });
+    }
+
+    // QTE: fire a new prompt if ready and none pending
+    if (!s.pendingQte && now >= s.nextQteAt) {
+      var key = KEYS[Math.floor(Math.random() * KEYS.length)];
+      s.pendingQte = { key: key, expiresAt: now + QTE_WINDOW_MS };
+      if (socketId) io.to(socketId).emit('qte_prompt', { key: key, windowMs: QTE_WINDOW_MS });
+    }
+
+    // Completion check (adjusted by stall time and successes).
+    // Floor at startTime+5000 so a streak of successes can't trigger instant completion.
+    var effectiveEnd = Math.max(
+      s.startTime + s.durationMs + s.qteStallMs - (s.qteSuccessCount * 5000),
+      s.startTime + 5000
+    );
+    if (now < effectiveEnd) return;
 
     // Job complete
     sessions.delete(playerId);
@@ -132,9 +165,9 @@ function tickJobs(io, playerToSocket) {
     if (!db) return;
 
     const newXp = (db.job_xp || 0) + s.job.xp;
-    const newTokens = (db.tokens || 0) + s.job.tok;
+    const bonusTok = Math.floor(s.job.tok * (1 + s.qteSuccessCount * 0.10));
+    const newTokens = (db.tokens || 0) + bonusTok;
 
-    // Determine new tier
     const tiers = TIERS[s.spec] || TIERS.ANY;
     let newTier = 0;
     for (const t of tiers) { if (newXp >= t.xpReq) newTier = t.tier; }
@@ -148,20 +181,47 @@ function tickJobs(io, playerToSocket) {
       outfit: db.outfit || '{}',
     });
     stmts.updateStats.run({ id: playerId, tokens: newTokens, health: db.health, food: db.food });
+    applyServerStats(playerId, { tokens: newTokens, jobXp: newXp, jobTier: newTier });
 
-    const socketId = playerToSocket.get(playerId);
     if (socketId) {
       io.to(socketId).emit('job_complete', {
-        tokensEarned: s.job.tok,
+        tokensEarned: bonusTok,
         xpEarned: s.job.xp,
         newTokens,
         newXp,
         newTier,
         tierUp: newTier > db.job_tier,
         jobName: s.job.name,
+        qteSuccessCount: s.qteSuccessCount,
       });
     }
   });
 }
 
-module.exports = { startJob, cancelJob, buyFood, tickJobs, sessions, TIERS };
+function respondQte(socket, data) {
+  // Get playerId from socket — same method as startJob/cancelJob
+  const result = getLobbyBySocket(socket.id);
+  if (!result) return;
+  const { playerId } = result;
+
+  const s = sessions.get(playerId);
+  if (!s || !s.pendingQte) return;
+
+  const now = Date.now();
+  if (now > s.pendingQte.expiresAt) return;  // tickJobs handles the miss
+
+  const correct = (data && data.key) === s.pendingQte.key;
+  s.pendingQte = null;
+  s.nextQteAt = now + 5000 + Math.random() * 5000;
+
+  if (correct) {
+    s.qteSuccessCount += 1;
+    s.qteStallMs = Math.max(0, s.qteStallMs - 5000);
+    socket.emit('qte_result', { outcome: 'success' });
+  } else {
+    s.qteStallMs = Math.min(s.qteStallMs + 3000, s.durationMs * 2);
+    socket.emit('qte_result', { outcome: 'fail' });
+  }
+}
+
+module.exports = { startJob, cancelJob, buyFood, tickJobs, respondQte, sessions, TIERS };
